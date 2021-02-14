@@ -1,4 +1,5 @@
 ### Hi there, I'm DarkBoy! 👋
+![Discord](https://discord.c99.nl/widget/theme-2/697279777974911077.png)
 <p align="center"> <img src="https://komarev.com/ghpvc/?username=darkboy-js-ops-cyber" alt="sujal-ops-cyber" /> </p>
 
 <a href="https://discord.gg/YsFTYxU">
@@ -13,8 +14,7 @@
 <a href="https://instagram.com/darkboyh2/">
   <img align="left" alt="DarkBoy's Instagram" width="16px" src="https://cdn.jsdelivr.net/npm/simple-icons@v3/icons/instagram.svg" />
 </a>
-![Discord](https://discord.c99.nl/widget/theme-2/697279777974911077.png)
-
+ 
 <br />
 
 ### Hey i'm Darkboy Gald to see you here! &nbsp;
