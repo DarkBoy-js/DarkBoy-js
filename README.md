@@ -1,4 +1,4 @@
-### Hi there, I'm DarkBoy! 👋
+### Hi there, I'm Darky! 👋
 <p align="center"> <img src="https://komarev.com/ghpvc/?username=darkboy-js-ops-cyber" alt="sujal-ops-cyber" /> </p>
 
 ![Discord](https://discord.c99.nl/widget/theme-2/697279777974911077.png)
@@ -24,13 +24,12 @@
  
 <br />
 
-### Hey i'm Darkboy Gald to see you here! &nbsp;
+### Hey i'm Darky Glad to see you here! &nbsp;
 
 I am a passionate self-taught programmer from Saudi Arbia.
  - 🌱 I’m currently learning EJS
 - 💬 Ask me about anything [here](https://discord.gg/dev)
-- 📫 Add Me On Discord? Darkboy#9966
-- 🥅 2021 Goals: Watch more por*
+- 📫 Add Me On Discord? Darky#9966
 
 **Languages and Tools:** &nbsp;
 <code><img height="15" src="https://raw.githubusercontent.com/github/explore/80688e429a7d4ef2fca1e82350fe8e3517d3494d/topics/python/python.png"></code>
@@ -45,7 +44,7 @@ I am a passionate self-taught programmer from Saudi Arbia.
   
 ### 📺 Latest YouTube Videos
 <!-- YOUTUBE:START -->
-- [Glitch Uptimer Bot](https://www.youtube.com/watch?v=rFOW7ohkSNI&t=26s)
- <!-- YOUTUBE:END -->
+
+<!-- YOUTUBE:END -->
 
 ### have agreat day/night.
