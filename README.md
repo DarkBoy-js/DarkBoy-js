@@ -26,7 +26,7 @@
 
 ### Hey i'm Darky Glad to see you here! &nbsp;
 
-I am a passionate self-taught programmer from Saudi Arbia.
+I am a passionate self-taught programmer.
  - 🌱 I’m currently learning EJS
 - 💬 Ask me about anything [here](https://discord.gg/dev)
 - 📫 Add Me On Discord? Darky#9966
