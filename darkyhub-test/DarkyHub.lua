@@ -1,5 +1,5 @@
 --[[
- DarkyHub v5.5.1 | Candy Kingdom TD / Roblox tower-defense macro hub
+ DarkyHub v5.5.2 | Candy Kingdom TD / Roblox tower-defense macro hub
  Scoped-module Luau build. RightShift toggles menu; placement minimizes the hub.
 
  NOTE: Roblox games use different remotes, button names and unit models.
@@ -2603,6 +2603,8 @@ end)
 -- ======================================================================
 -- v5.4: default to minimizing during placement; the option persists in settings.
 if Store.settings.minimizeOnPlacement == nil then Store.settings.minimizeOnPlacement = true end
+local View = {}
+local function setupInterface()
 local UI = { page = "Match", pages = {}, tabButtons = {}, refreshed = {} }
 local C = {
     bg = Color3.fromRGB(13, 13, 21), panel = Color3.fromRGB(26, 26, 39),
@@ -2671,7 +2673,7 @@ uiNotify = function(msg)
     if statusLine.Parent then statusLine.Text = tostring(msg) end
     task.delay(6, function()
         if Core.alive and token == noteToken and statusLine.Parent then
-            statusLine.Text = "DarkyHub v5.5.1 • RightShift to toggle"
+            statusLine.Text = "DarkyHub v5.5.2 • RightShift to toggle"
         end
     end)
 end
@@ -3565,6 +3567,9 @@ end)
 
 end -- initializeControls
 initializeControls()
+View.UI, View.C, View.sidebar = UI, C, sidebar
+end -- setupInterface
+setupInterface()
 
 -- UPGRADE MODULE: isolated private locals and scheduler.
 do
@@ -3675,20 +3680,20 @@ do
         Spy = true, Player = true, Settings = true }
     local expanded = false
     local more = new("TextButton", {
-        Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = C.off,
-        Text = "MORE TOOLS +", TextColor3 = C.text,
+        Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = View.C.off,
+        Text = "MORE TOOLS +", TextColor3 = View.C.text,
         Font = Enum.Font.GothamBold, TextSize = 11,
-    }, sidebar)
+    }, View.sidebar)
     corner(more, 7)
     local function refresh()
         more.Text = expanded and "FEWER TOOLS -" or "MORE TOOLS +"
-        for name, tab in pairs(UI.tabButtons) do
+        for name, tab in pairs(View.UI.tabButtons) do
             if advanced[name] then tab.Visible = expanded end
         end
     end
     connect(more.Activated, function() expanded = not expanded; refresh() end)
     -- If an advanced page was last selected, move to the normal Match landing page.
-    if advanced[UI.page] then UI.show("Match") end
+    if advanced[View.UI.page] then View.UI.show("Match") end
     refresh()
 end
 
@@ -3711,6 +3716,6 @@ env.DarkyHubUnload = function()
     -- Installed __namecall hooks stay in the executor chain, but become inert.
 end
 
-uiNotify(Spy.available and "DarkyHub v5.5.1 ready • Remote Spy active"
-    or "DarkyHub v5.5.1 ready • remote hook unavailable, GUI automations still work")
+uiNotify(Spy.available and "DarkyHub v5.5.2 ready • Remote Spy active"
+    or "DarkyHub v5.5.2 ready • remote hook unavailable, GUI automations still work")
 if not Store.hasFS then uiNotify("File APIs unavailable: macros will only exist in memory") end
