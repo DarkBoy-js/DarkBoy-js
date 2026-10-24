@@ -1,5 +1,5 @@
 --[[
- DarkyHub v5.4 | Candy Kingdom TD / Roblox tower-defense macro hub
+ DarkyHub v5.5 | Candy Kingdom TD / Roblox tower-defense macro hub
  Scoped-module Luau build. RightShift toggles menu; placement minimizes the hub.
 
  NOTE: Roblox games use different remotes, button names and unit models.
@@ -98,6 +98,10 @@ end
 -- ======================================================================
 local Store = {}
 Store.root = "DarkyHubV4"
+Store.playerId = tostring(player.UserId)
+Store.playerName = player.DisplayName ~= "" and player.DisplayName or player.Name
+Store.settingsFile = Store.root .. "/players/" .. Store.playerId .. "/settings.json"
+Store.hasMigratedSettings = false
 Store.hasFS = type(readfile) == "function" and type(writefile) == "function"
     and type(makefolder) == "function" and type(isfolder) == "function"
     and type(listfiles) == "function"
@@ -148,6 +152,8 @@ end
 local function initializeFolders()
     if not Store.hasFS then return false end
     return directory(Store.root) and directory(Store.root .. "/maps")
+        and directory(Store.root .. "/players")
+        and directory(Store.root .. "/players/" .. Store.playerId)
 end
 local function readJSON(path)
     if not Store.hasFS then return nil end
@@ -163,7 +169,12 @@ local function writeJSON(path, data)
 end
 function Store.load()
     initializeFolders()
-    local s = readJSON(Store.root .. "/settings.json") or readJSON("DarkyHubV3/settings.json")
+    local s = readJSON(Store.settingsFile)
+    -- Existing users keep their original settings on first launch, then diverge.
+    if not s then
+        s = readJSON(Store.root .. "/settings.json") or readJSON("DarkyHubV3/settings.json")
+        Store.hasMigratedSettings = true
+    end
     if s then
         for key, oldValue in pairs(Store.settings) do
             if type(s[key]) == type(oldValue) then Store.settings[key] = s[key] end
@@ -192,7 +203,7 @@ function Store.saveSettings()
     local rev = saveRevision
     task.delay(0.5, function()
         if Core.alive and rev == saveRevision then
-            writeJSON(Store.root .. "/settings.json", Store.settings)
+            writeJSON(Store.settingsFile, Store.settings)
         end
     end)
 end
@@ -265,6 +276,7 @@ function Store.saveMapConfig(key)
     return false
 end
 Store.load()
+if Store.hasMigratedSettings and Store.hasFS then writeJSON(Store.settingsFile, Store.settings) end
 
 -- ======================================================================
 --  CODEC: round-trip remote arguments into JSON
@@ -2499,7 +2511,7 @@ function Backup.importAll(raw)
             end
         end
     end
-    writeJSON(Store.root .. "/settings.json", Store.settings)
+    writeJSON(Store.settingsFile, Store.settings)
     Store.saveActions()
     Store.loadMapConfig(Map.key)
     Macro.loadSelection()
@@ -2631,8 +2643,8 @@ new("TextLabel", { Size = UDim2.fromOffset(150, 40), Position = UDim2.fromOffset
     Text = "DarkyHub", Font = Enum.Font.GothamBold, TextSize = 20,
     TextColor3 = C.accent, TextXAlignment = Enum.TextXAlignment.Left,
     BackgroundTransparency = 1 }, bar)
-new("TextLabel", { Size = UDim2.fromOffset(390, 40), Position = UDim2.fromOffset(147, 0),
-    Text = "v5.4  •  MODULAR / PLACEMENT HUD", Font = Enum.Font.Gotham,
+new("TextLabel", { Size = UDim2.fromOffset(530, 40), Position = UDim2.fromOffset(147, 0),
+    Text = "v5.5  •  " .. Store.playerName .. "  (@" .. player.Name .. ")", Font = Enum.Font.Gotham,
     TextSize = 11, TextColor3 = C.muted, TextXAlignment = Enum.TextXAlignment.Left,
     BackgroundTransparency = 1 }, bar)
 local close = new("TextButton", { Size = UDim2.fromOffset(38, 30),
@@ -2659,7 +2671,7 @@ uiNotify = function(msg)
     if statusLine.Parent then statusLine.Text = tostring(msg) end
     task.delay(6, function()
         if Core.alive and token == noteToken and statusLine.Parent then
-            statusLine.Text = "DarkyHub v4.3 • RightShift to toggle"
+            statusLine.Text = "DarkyHub v5.5 • RightShift to toggle"
         end
     end)
 end
@@ -2999,8 +3011,31 @@ end, function(v)
     macroDD.refresh(v)
 end, Macro.selected)
 toggle(matchMacroSec, "Auto-start selected macro at wave 1", "autoPlay")
-button(matchMacroSec, "PLAY selected macro NOW", function() Macro.startPlay() end)
-button(matchMacroSec, "STOP macro playback", function() Macro.stopPlay() end, true)
+local macroPlayButton = button(matchMacroSec, "PLAY MACRO", function(btn)
+    if Macro.playing then
+        Macro.stopPlay()
+        btn.Text = "PLAY MACRO"
+        btn.BackgroundColor3 = C.green
+        uiNotify("Macro stopped")
+    else
+        Macro.startPlay()
+        btn.Text = Macro.playing and "STOP MACRO" or "PLAY MACRO"
+        btn.BackgroundColor3 = Macro.playing and C.danger or C.green
+    end
+end)
+macroPlayButton.BackgroundColor3 = C.green
+-- Keep one button synchronized with automatic playback and match transitions.
+task.spawn(function()
+    local previous = nil
+    while Core.alive do
+        task.wait(0.5)
+        if Macro.playing ~= previous and macroPlayButton.Parent then
+            previous = Macro.playing
+            macroPlayButton.Text = previous and "STOP MACRO" or "PLAY MACRO"
+            macroPlayButton.BackgroundColor3 = previous and C.danger or C.green
+        end
+    end
+end)
 button(matchMacroSec, "Refresh map macros", function()
     Store.macros[Map.key] = nil
     Store.loadMap(Map.key)
@@ -3630,6 +3665,29 @@ pcall(function()
     end)
 end)
 
+-- COMPACT NAVIGATION: hide advanced tabs until explicitly requested.
+do
+    local advanced = { Home = true, Shop = true, Discord = true,
+        Spy = true, Player = true, Settings = true }
+    local expanded = false
+    local more = new("TextButton", {
+        Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = C.off,
+        Text = "MORE TOOLS +", TextColor3 = C.text,
+        Font = Enum.Font.GothamBold, TextSize = 11,
+    }, sidebar)
+    corner(more, 7)
+    local function refresh()
+        more.Text = expanded and "FEWER TOOLS -" or "MORE TOOLS +"
+        for name, tab in pairs(UI.tabButtons) do
+            if advanced[name] then tab.Visible = expanded end
+        end
+    end
+    connect(more.Activated, function() expanded = not expanded; refresh() end)
+    -- If an advanced page was last selected, move to the normal Match landing page.
+    if advanced[UI.page] then UI.show("Match") end
+    refresh()
+end
+
 env.DarkyHubUnload = function()
     if not Core.alive then return end
     Core.alive = false
@@ -3649,6 +3707,6 @@ env.DarkyHubUnload = function()
     -- Installed __namecall hooks stay in the executor chain, but become inert.
 end
 
-uiNotify(Spy.available and "DarkyHub v4.3 ready • Remote Spy active"
-    or "DarkyHub v4.3 ready • remote hook unavailable, GUI automations still work")
+uiNotify(Spy.available and "DarkyHub v5.5 ready • Remote Spy active"
+    or "DarkyHub v5.5 ready • remote hook unavailable, GUI automations still work")
 if not Store.hasFS then uiNotify("File APIs unavailable: macros will only exist in memory") end
