@@ -1,5 +1,5 @@
 --[[
- DarkyHub v5.6.2 | Candy Kingdom TD / Roblox tower-defense macro hub
+ DarkyHub v5.7 | Candy Kingdom TD / Roblox tower-defense macro hub
  Scoped-module Luau build. RightShift toggles menu; placement minimizes the hub.
 
  NOTE: Roblox games use different remotes, button names and unit models.
@@ -122,6 +122,7 @@ Store.settings = {
     stopWaveSell = true, stopWaveReplay = true,
     stopWaveMaxSellAttempts = 3, stopWaveSellDelay = 1.0,
     individualUpgradeFallback = true,
+    matchMode = "INF / Story", modeProfiles = {},
     resultMode = "Off", autoJoin = false, autoChallenge = false,
     autoSummon = false, autoTrait = false, claimDaily = false,
     claimBP = false, claimLevel = false, showMarkers = true,
@@ -2639,11 +2640,11 @@ local View = {}
 local function setupInterface()
 local UI = { page = "Match", pages = {}, tabButtons = {}, refreshed = {} }
 local C = {
-    bg = Color3.fromRGB(13, 13, 21), panel = Color3.fromRGB(26, 26, 39),
-    section = Color3.fromRGB(32, 32, 46), top = Color3.fromRGB(20, 20, 30),
-    accent = Color3.fromRGB(165, 104, 255), text = Color3.fromRGB(241, 239, 248),
-    muted = Color3.fromRGB(159, 157, 174), off = Color3.fromRGB(65, 64, 79),
-    danger = Color3.fromRGB(130, 48, 69), green = Color3.fromRGB(92, 210, 164),
+    bg = Color3.fromRGB(11, 12, 23), panel = Color3.fromRGB(22, 24, 40),
+    section = Color3.fromRGB(29, 32, 52), top = Color3.fromRGB(17, 19, 34),
+    accent = Color3.fromRGB(155, 119, 255), text = Color3.fromRGB(246, 247, 255),
+    muted = Color3.fromRGB(160, 167, 190), off = Color3.fromRGB(51, 56, 78),
+    danger = Color3.fromRGB(198, 72, 102), green = Color3.fromRGB(65, 197, 154),
 }
 GUI = new("ScreenGui", { Name = "DarkyHub_v4", ResetOnSpawn = false,
     ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, nil)
@@ -2665,8 +2666,8 @@ for _, root in ipairs(cleanupRoots) do
     end
 end
 
-local main = new("Frame", { Size = UDim2.fromOffset(810, 535),
-    Position = UDim2.new(0.5, -405, 0.5, -268), BackgroundColor3 = C.bg,
+local main = new("Frame", { Size = UDim2.fromOffset(880, 570),
+    Position = UDim2.new(0.5, -440, 0.5, -285), BackgroundColor3 = C.bg,
     BorderSizePixel = 0, Active = true }, GUI)
 corner(main, 12)
 new("UIStroke", { Color = C.accent, Thickness = 1, Transparency = 0.48 }, main)
@@ -2674,11 +2675,11 @@ local bar = new("Frame", { Size = UDim2.new(1, 0, 0, 44),
     BackgroundColor3 = C.top, BorderSizePixel = 0 }, main)
 corner(bar, 12)
 new("TextLabel", { Size = UDim2.fromOffset(150, 40), Position = UDim2.fromOffset(15, 0),
-    Text = "DarkyHub", Font = Enum.Font.GothamBold, TextSize = 20,
+    Text = "DARKYHUB", Font = Enum.Font.GothamBold, TextSize = 20,
     TextColor3 = C.accent, TextXAlignment = Enum.TextXAlignment.Left,
     BackgroundTransparency = 1 }, bar)
 new("TextLabel", { Size = UDim2.fromOffset(530, 40), Position = UDim2.fromOffset(147, 0),
-    Text = "v5.5  •  " .. Store.playerName .. "  (@" .. player.Name .. ")", Font = Enum.Font.Gotham,
+    Text = "v5.7  |  " .. Store.playerName .. "  (@" .. player.Name .. ")", Font = Enum.Font.Gotham,
     TextSize = 11, TextColor3 = C.muted, TextXAlignment = Enum.TextXAlignment.Left,
     BackgroundTransparency = 1 }, bar)
 local close = new("TextButton", { Size = UDim2.fromOffset(38, 30),
@@ -2705,7 +2706,7 @@ uiNotify = function(msg)
     if statusLine.Parent then statusLine.Text = tostring(msg) end
     task.delay(6, function()
         if Core.alive and token == noteToken and statusLine.Parent then
-            statusLine.Text = "DarkyHub v5.5.2 • RightShift to toggle"
+            statusLine.Text = "DarkyHub v5.7  |  RightShift to toggle"
         end
     end)
 end
@@ -2954,7 +2955,7 @@ input(matchControls, "Tower unit folder (optional e.g. Units or Map.Units)", Sto
     Store.settings.unitContainer = v; Store.saveSettings()
 end)
 label(matchControls, "If a unit folder is found, retries stop when a new tower spawns near the saved spot  Otherwise remote calls are unverified and not resent blindly")
-toggle(matchControls, "Is this a Raid? (advance to NEXT stage)", "isRaidMatch")
+label(matchControls, "Match type and raid behavior are controlled by the mode selector above.")
 label(matchControls, "Upgrade All now uses the fast GUI button path. Macro completion or MANUAL confirmation is required.")
 button(matchControls, "Confirm ALL manually placed units are ready", function()
     if not Detect.inMatch or Detect.result then
@@ -2999,6 +3000,113 @@ end, function(v)
 end, Store.settings.resultMode)
 toggle(resultSec, "Try Again automatically after defeat", "replayOnDefeat")
 label(resultSec, "This choice OVERRIDES Raid and Challenge defaults. Next Stage on Raid: NEXT then POUR 1 BUG MILK then YES. Off never exits automatically.")
+-- MODE SELECTOR: three workflows, with settings remembered separately for each mode.
+-- This block remains within initializeControls to avoid main-chunk register pressure.
+do
+    local modes = { "INF / Story", "Challenge", "Raid" }
+    local modeSection = section(match.L, "01  |  CHOOSE MATCH MODE")
+    modeSection.LayoutOrder = -50
+    local barRow = new("Frame", { Size = UDim2.new(1, 0, 0, 41),
+        BackgroundTransparency = 1 }, modeSection)
+    new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal,
+        HorizontalAlignment = Enum.HorizontalAlignment.Center,
+        Padding = UDim.new(0, 5) }, barRow)
+    local modeButtons = {}
+    local explain = label(modeSection, "Choose a mode to show its controls", C.muted)
+    local storyPanel = section(match.L, "STORY / INFINITE OPTIONS")
+    storyPanel.LayoutOrder = -20
+    label(storyPanel, "Stage-specific macros remain available from the Macros tab. Infinite wave-stop settings are shown below.")
+    local challengePanel = section(match.L, "CHALLENGE OPTIONS")
+    challengePanel.LayoutOrder = -20
+    input(challengePanel, "Challenge card / stage name", Store.settings.challengeStage, function(v)
+        Store.settings.challengeStage = v
+        Store.saveSettings()
+    end)
+    toggle(challengePanel, "Auto Join Challenge", "autoChallenge")
+    button(challengePanel, "Open advanced Challenge settings", function() UI.show("Home") end)
+    local raidPanel = section(match.L, "RAID OPTIONS")
+    raidPanel.LayoutOrder = -20
+    toggle(raidPanel, "Auto open Halloween Raid", "autoRaid")
+    toggle(raidPanel, "Enter raid automatically", "raidAutoEnter")
+    toggle(raidPanel, "Join solo", "raidSolo")
+    numeric(raidPanel, "Minimum Bug Milk", "raidMinMilk", 1, 500)
+    button(raidPanel, "Open all Raid controls", function() UI.show("Raid") end)
+    local keys = { "resultMode", "autoPlay", "autoSkip", "autoUpgrade",
+        "autoRaid", "isRaidMatch", "autoChallenge", "autoJoin",
+        "stopWaveEnabled", "raidAutoEnter", "raidSolo" }
+    local defaults = {
+        ["INF / Story"] = { resultMode = "Replay", autoRaid = false,
+            isRaidMatch = false, autoChallenge = false, stopWaveEnabled = false },
+        Challenge = { resultMode = "Lobby", autoRaid = false,
+            isRaidMatch = false, autoChallenge = true, stopWaveEnabled = false },
+        Raid = { resultMode = "Next Stage", autoRaid = false,
+            isRaidMatch = true, autoChallenge = false, stopWaveEnabled = false },
+    }
+    if type(Store.settings.modeProfiles) ~= "table" then Store.settings.modeProfiles = {} end
+    local profiles = Store.settings.modeProfiles
+    local active = Store.settings.matchMode
+    if not table.find(modes, active) then active = "INF / Story" end
+    if not next(profiles) then
+        if Store.settings.isRaidMatch or Store.settings.autoRaid then
+            active = "Raid"
+        elseif Store.settings.autoChallenge then
+            active = "Challenge"
+        end
+    end
+    local function snapshot()
+        local state = {}
+        for _, key in ipairs(keys) do state[key] = Store.settings[key] end
+        profiles[active] = state
+    end
+    local function selectMode(target, initial)
+        if not table.find(modes, target) then return end
+        if not initial then snapshot() end
+        active = target
+        Store.settings.matchMode = active
+        local saved = profiles[target]
+        if type(saved) ~= "table" then
+            saved = {}
+            for key, val in pairs(defaults[target]) do saved[key] = val end
+        end
+        for key, val in pairs(saved) do
+            if Store.settings[key] ~= nil and type(val) == type(Store.settings[key]) then
+                Store.settings[key] = val
+            end
+        end
+        -- A Raid is always a raid, regardless of stale saved toggles.
+        Store.settings.isRaidMatch = target == "Raid"
+        if target == "Challenge" then Store.settings.autoRaid = false end
+        storyPanel.Visible = target == "INF / Story"
+        infiniteSec.Visible = target == "INF / Story"
+        challengePanel.Visible = target == "Challenge"
+        raidPanel.Visible = target == "Raid"
+        for name, btn in pairs(modeButtons) do
+            local selected = name == target
+            btn.BackgroundColor3 = selected and C.accent or C.off
+            btn.TextColor3 = selected and C.bg or C.text
+        end
+        if target == "Raid" then
+            explain.Text = "RAID  |  NEXT > POUR BUG MILK > YES after victory"
+        elseif target == "Challenge" then
+            explain.Text = "CHALLENGE  |  auto-select your challenge card and join"
+        else
+            explain.Text = "STORY / INFINITE  |  automatic placements, upgrades and wave skip"
+        end
+        refreshToggles()
+        resultDD.refresh(Store.settings.resultMode)
+        Store.saveSettings()
+    end
+    for _, name in ipairs(modes) do
+        local b = new("TextButton", { Size = UDim2.new(0.32, -3, 1, 0),
+            Text = name, BackgroundColor3 = C.off, TextColor3 = C.text,
+            Font = Enum.Font.GothamBold, TextSize = 12,
+            AutoButtonColor = false }, barRow)
+        corner(b, 8)
+        modeButtons[name] = b
+        connect(b.Activated, function() selectMode(name, false) end)
+    end
+    selectMode(active, true)
+end
 local rewardSec = section(match.R, "Run tracker")
 local rewardsInfo = label(rewardSec, "Runs 0", C.text)
 button(rewardSec, "Reset run counters", function()
