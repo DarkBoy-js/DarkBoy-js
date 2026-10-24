@@ -1,5 +1,5 @@
 --[[
- DarkyHub v5.5 | Candy Kingdom TD / Roblox tower-defense macro hub
+ DarkyHub v5.5.1 | Candy Kingdom TD / Roblox tower-defense macro hub
  Scoped-module Luau build. RightShift toggles menu; placement minimizes the hub.
 
  NOTE: Roblox games use different remotes, button names and unit models.
@@ -2671,7 +2671,7 @@ uiNotify = function(msg)
     if statusLine.Parent then statusLine.Text = tostring(msg) end
     task.delay(6, function()
         if Core.alive and token == noteToken and statusLine.Parent then
-            statusLine.Text = "DarkyHub v5.5 • RightShift to toggle"
+            statusLine.Text = "DarkyHub v5.5.1 • RightShift to toggle"
         end
     end)
 end
@@ -2790,6 +2790,7 @@ function UI.show(name)
     for n, pane in pairs(UI.pages) do pane.Visible = n == name end
     for n, b in pairs(UI.tabButtons) do b.BackgroundColor3 = n == name and C.accent or C.panel end
 end
+local function initializeControls()
 local function section(parent, title)
     local f = new("Frame", { Size = UDim2.new(1, -8, 0, 0),
         BackgroundColor3 = C.panel, BorderSizePixel = 0,
@@ -3415,7 +3416,7 @@ local settingsPage = UI.pageCreate("Settings")
 local settingsSec = section(settingsPage.L, "Data and configuration")
 label(settingsSec, "Saves: workspace/DarkyHubV4/maps/<map name>/<macro name>.json\nEach map also saves its selected macro in map_settings.json\nRightShift toggles the hub  GUI results are auto-detected")
 button(settingsSec, "Save settings + actions now", function()
-    writeJSON(Store.root .. "/settings.json", Store.settings)
+    writeJSON(Store.settingsFile, Store.settings)
     Store.saveActions()
     uiNotify("Settings saved")
 end)
@@ -3562,6 +3563,9 @@ task.spawn(function()
 end)
 
 
+end -- initializeControls
+initializeControls()
+
 -- UPGRADE MODULE: isolated private locals and scheduler.
 do
 local individualUpgradeCursor = 0
@@ -3707,6 +3711,6 @@ env.DarkyHubUnload = function()
     -- Installed __namecall hooks stay in the executor chain, but become inert.
 end
 
-uiNotify(Spy.available and "DarkyHub v5.5 ready • Remote Spy active"
-    or "DarkyHub v5.5 ready • remote hook unavailable, GUI automations still work")
+uiNotify(Spy.available and "DarkyHub v5.5.1 ready • Remote Spy active"
+    or "DarkyHub v5.5.1 ready • remote hook unavailable, GUI automations still work")
 if not Store.hasFS then uiNotify("File APIs unavailable: macros will only exist in memory") end
