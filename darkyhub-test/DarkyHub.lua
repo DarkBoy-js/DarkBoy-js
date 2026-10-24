@@ -1,5 +1,5 @@
 --[[
- DarkyHub v6.0 | Candy Kingdom TD / Roblox tower-defense macro hub
+ DarkyHub v6.0.1 | Candy Kingdom TD / Roblox tower-defense macro hub
  Scoped-module Luau build. RightShift toggles menu; placement minimizes the hub.
 
  NOTE: Roblox games use different remotes, button names and unit models.
@@ -2698,7 +2698,7 @@ new("TextLabel", { Size = UDim2.fromOffset(150, 40), Position = UDim2.fromOffset
     TextColor3 = C.accent, TextXAlignment = Enum.TextXAlignment.Left,
     BackgroundTransparency = 1 }, bar)
 new("TextLabel", { Size = UDim2.fromOffset(530, 40), Position = UDim2.fromOffset(147, 0),
-    Text = "v6.0  |  " .. Store.playerName .. "  (@" .. player.Name .. ")", Font = Enum.Font.Gotham,
+    Text = "v6.0.1  |  " .. Store.playerName .. "  (@" .. player.Name .. ")", Font = Enum.Font.Gotham,
     TextSize = 11, TextColor3 = C.muted, TextXAlignment = Enum.TextXAlignment.Left,
     BackgroundTransparency = 1 }, bar)
 local close = new("TextButton", { Size = UDim2.fromOffset(38, 30),
@@ -2741,7 +2741,7 @@ uiNotify = function(msg)
     if statusLine.Parent then statusLine.Text = tostring(msg) end
     task.delay(6, function()
         if Core.alive and token == noteToken and statusLine.Parent then
-            statusLine.Text = "DarkyHub v6.0  |  RightShift to toggle"
+            statusLine.Text = "DarkyHub v6.0.1  |  RightShift to toggle"
         end
     end)
 end
@@ -3628,8 +3628,11 @@ do
                 for k, prior in pairs(before) do
                     if obj.BackgroundColor3 == prior then obj.BackgroundColor3 = C[k]; break end
                 end
-                for k, prior in pairs(before) do
-                    if obj.TextColor3 == prior then obj.TextColor3 = C[k]; break end
+                -- TextColor3 exists on text objects, not Frames, ScrollingFrames or ImageButtons.
+                if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
+                    for k, prior in pairs(before) do
+                        if obj.TextColor3 == prior then obj.TextColor3 = C[k]; break end
+                    end
                 end
                 if obj:IsA("ScrollingFrame") then
                     for k, prior in pairs(before) do
@@ -3985,6 +3988,6 @@ env.DarkyHubUnload = function()
     -- Installed __namecall hooks stay in the executor chain, but become inert.
 end
 
-uiNotify(Spy.available and "DarkyHub v6.0 ready • Remote Spy active"
-    or "DarkyHub v6.0 ready • remote hook unavailable, GUI automations still work")
+uiNotify(Spy.available and "DarkyHub v6.0.1 ready • Remote Spy active"
+    or "DarkyHub v6.0.1 ready • remote hook unavailable, GUI automations still work")
 if not Store.hasFS then uiNotify("File APIs unavailable: macros will only exist in memory") end
