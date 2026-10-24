@@ -1,5 +1,5 @@
 --[[
- DarkyHub v5.8 | Candy Kingdom TD / Roblox tower-defense macro hub
+ DarkyHub v5.9 | Candy Kingdom TD / Roblox tower-defense macro hub
  Scoped-module Luau build. RightShift toggles menu; placement minimizes the hub.
 
  NOTE: Roblox games use different remotes, button names and unit models.
@@ -2694,7 +2694,7 @@ new("TextLabel", { Size = UDim2.fromOffset(150, 40), Position = UDim2.fromOffset
     TextColor3 = C.accent, TextXAlignment = Enum.TextXAlignment.Left,
     BackgroundTransparency = 1 }, bar)
 new("TextLabel", { Size = UDim2.fromOffset(530, 40), Position = UDim2.fromOffset(147, 0),
-    Text = "v5.8  |  " .. Store.playerName .. "  (@" .. player.Name .. ")", Font = Enum.Font.Gotham,
+    Text = "v5.9  |  " .. Store.playerName .. "  (@" .. player.Name .. ")", Font = Enum.Font.Gotham,
     TextSize = 11, TextColor3 = C.muted, TextXAlignment = Enum.TextXAlignment.Left,
     BackgroundTransparency = 1 }, bar)
 local close = new("TextButton", { Size = UDim2.fromOffset(38, 30),
@@ -2702,11 +2702,27 @@ local close = new("TextButton", { Size = UDim2.fromOffset(38, 30),
     Text = "×", TextSize = 24, Font = Enum.Font.GothamBold, TextColor3 = C.text }, bar)
 corner(close, 7)
 connect(close.Activated, function() main.Visible = false end)
-local sidebar = new("Frame", { Position = UDim2.fromOffset(9, 53),
-    Size = UDim2.new(0, 107, 1, -100), BackgroundTransparency = 1 }, main)
-new("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, sidebar)
-local area = new("Frame", { Position = UDim2.fromOffset(123, 52),
-    Size = UDim2.new(1, -134, 1, -96), BackgroundTransparency = 1 }, main)
+local sidePanel = new("Frame", { Position = UDim2.fromOffset(9, 53),
+    Size = UDim2.new(0, 155, 1, -100), BackgroundColor3 = C.panel,
+    BorderSizePixel = 0 }, main)
+corner(sidePanel, 10)
+new("UIStroke", { Color = C.off, Transparency = 0.7 }, sidePanel)
+new("TextLabel", { Size = UDim2.new(1, -20, 0, 35),
+    Position = UDim2.fromOffset(12, 9), BackgroundTransparency = 1,
+    Text = "NAVIGATION", TextColor3 = C.muted,
+    Font = Enum.Font.GothamBold, TextSize = 10,
+    TextXAlignment = Enum.TextXAlignment.Left }, sidePanel)
+local sidebar = new("ScrollingFrame", {
+    Position = UDim2.fromOffset(7, 45),
+    Size = UDim2.new(1, -14, 1, -54),
+    BackgroundTransparency = 1, BorderSizePixel = 0,
+    ScrollBarThickness = 2, ScrollBarImageColor3 = C.accent,
+    CanvasSize = UDim2.fromOffset(0, 0),
+    AutomaticCanvasSize = Enum.AutomaticSize.Y }, sidePanel)
+new("UIListLayout", { Padding = UDim.new(0, 6),
+    SortOrder = Enum.SortOrder.LayoutOrder }, sidebar)
+local area = new("Frame", { Position = UDim2.fromOffset(172, 52),
+    Size = UDim2.new(1, -183, 1, -96), BackgroundTransparency = 1 }, main)
 local statusLine = new("TextLabel", { Position = UDim2.new(0, 12, 1, -34),
     Size = UDim2.new(1, -24, 0, 27), BackgroundColor3 = C.panel,
     TextColor3 = C.muted, TextXAlignment = Enum.TextXAlignment.Left,
@@ -2721,7 +2737,7 @@ uiNotify = function(msg)
     if statusLine.Parent then statusLine.Text = tostring(msg) end
     task.delay(6, function()
         if Core.alive and token == noteToken and statusLine.Parent then
-            statusLine.Text = "DarkyHub v5.8  |  RightShift to toggle"
+            statusLine.Text = "DarkyHub v5.9  |  RightShift to toggle"
         end
     end)
 end
@@ -2826,10 +2842,18 @@ function UI.pageCreate(name)
     local pane = new("Frame", { Size = UDim2.fromScale(1, 1),
         BackgroundTransparency = 1, Visible = false }, area)
     UI.pages[name] = pane
-    local b = new("TextButton", { Size = UDim2.new(1, 0, 0, 37),
-        BackgroundColor3 = C.panel, Text = name, TextColor3 = C.text,
-        Font = Enum.Font.GothamBold, TextSize = 12, AutoButtonColor = false }, sidebar)
-    corner(b, 7)
+    local icons = { Match = "◈", Macros = "▣", Home = "⌂", Raid = "◆",
+        Shop = "◇", Discord = "◎", Spy = "◉", Player = "♙", Settings = "⚙" }
+    local b = new("TextButton", { Size = UDim2.new(1, -3, 0, 39),
+        BackgroundColor3 = C.section, Text = "  " .. (icons[name] or "•") .. "   " .. name,
+        TextColor3 = C.muted, Font = Enum.Font.GothamBold,
+        TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left,
+        AutoButtonColor = true, BorderSizePixel = 0 }, sidebar)
+    corner(b, 8)
+    local line = new("Frame", { Name = "SelectedIndicator",
+        Size = UDim2.fromOffset(3, 23), Position = UDim2.new(0, 1, 0.5, -11),
+        BackgroundColor3 = C.accent, BorderSizePixel = 0, Visible = false }, b)
+    corner(line, 3)
     UI.tabButtons[name] = b
     connect(b.Activated, function() UI.show(name) end)
     return { L = column(pane, 0, 0), R = column(pane, 0.5, 5) }
@@ -2838,7 +2862,13 @@ function UI.show(name)
     UI.page = name
     Spy.enabled = (name == "Spy" or name == "Raid")
     for n, pane in pairs(UI.pages) do pane.Visible = n == name end
-    for n, b in pairs(UI.tabButtons) do b.BackgroundColor3 = n == name and C.accent or C.panel end
+    for n, b in pairs(UI.tabButtons) do
+        local selected = n == name
+        b.BackgroundColor3 = selected and C.accent or C.section
+        b.TextColor3 = selected and C.bg or C.muted
+        local indicator = b:FindFirstChild("SelectedIndicator")
+        if indicator then indicator.Visible = selected end
+    end
 end
 local function initializeControls()
 local function section(parent, title)
@@ -3908,13 +3938,14 @@ do
         Spy = true, Player = true, Settings = true }
     local expanded = false
     local more = new("TextButton", {
-        Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = View.C.off,
-        Text = "MORE TOOLS +", TextColor3 = View.C.text,
+        Size = UDim2.new(1, -3, 0, 37), BackgroundColor3 = View.C.off,
+        Text = "  +  MORE TOOLS", TextColor3 = View.C.text,
         Font = Enum.Font.GothamBold, TextSize = 11,
+        TextXAlignment = Enum.TextXAlignment.Left,
     }, View.sidebar)
     corner(more, 7)
     local function refresh()
-        more.Text = expanded and "FEWER TOOLS -" or "MORE TOOLS +"
+        more.Text = expanded and "  −  FEWER TOOLS" or "  +  MORE TOOLS"
         for name, tab in pairs(View.UI.tabButtons) do
             if advanced[name] then tab.Visible = expanded end
         end
@@ -3944,6 +3975,6 @@ env.DarkyHubUnload = function()
     -- Installed __namecall hooks stay in the executor chain, but become inert.
 end
 
-uiNotify(Spy.available and "DarkyHub v5.5.2 ready • Remote Spy active"
-    or "DarkyHub v5.5.2 ready • remote hook unavailable, GUI automations still work")
+uiNotify(Spy.available and "DarkyHub v5.9 ready • Remote Spy active"
+    or "DarkyHub v5.9 ready • remote hook unavailable, GUI automations still work")
 if not Store.hasFS then uiNotify("File APIs unavailable: macros will only exist in memory") end
