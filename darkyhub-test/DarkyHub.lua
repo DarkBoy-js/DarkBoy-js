@@ -1,5 +1,5 @@
 --[[
- DarkyHub v5.9 | Candy Kingdom TD / Roblox tower-defense macro hub
+ DarkyHub v6.0 | Candy Kingdom TD / Roblox tower-defense macro hub
  Scoped-module Luau build. RightShift toggles menu; placement minimizes the hub.
 
  NOTE: Roblox games use different remotes, button names and unit models.
@@ -1192,10 +1192,14 @@ function Macro.startPlay()
         local previous = 0
         for index, step in ipairs(placements) do
             if not active() then return end
+            -- Recorded wave timing is optional and cannot stall on missing HUD data.
             if Store.settings.placementByWave then
                 local targetWave = tonumber(step.wave) or 1
-                while active() and ((not Detect or not Detect.wave) or Detect.wave < targetWave) do
-                    Macro.step = "Waiting for wave " .. targetWave
+                local startedWaiting = os.clock()
+                while active() and Detect and Detect.wave
+                    and Detect.wave < targetWave
+                    and os.clock() - startedWaiting < 30 do
+                    Macro.step = "Optional wave schedule: " .. targetWave
                     task.wait(0.35)
                 end
                 if not active() then return end
@@ -1231,7 +1235,7 @@ function Macro.startPlay()
                 if not active() then return end
                 if pending[index] and attempted[index] < tries and not sentUnverified[index] then
                     local targetWave = tonumber(step.wave) or 1
-                    if not Store.settings.placementByWave or (Detect.wave and Detect.wave >= targetWave) then
+                    if not Store.settings.placementByWave or not Detect.wave or Detect.wave >= targetWave then
                         attemptOne(index, step)
                     end
                 end
@@ -1418,7 +1422,7 @@ function Detect.scan()
             ResultEvent(Detect.resultKind)
         end)
     end
-    if Detect.inMatch and wave <= 1 and (not oldInMatch or (oldWave and wave < oldWave)) then
+    if Detect.inMatch and (not oldInMatch or (wave and wave <= 1 and oldWave and wave < oldWave)) then
         Detect.runId = Detect.runId + 1
         Macro.placementDone = false
         Macro.dispatchedPlacements = 0
@@ -2694,7 +2698,7 @@ new("TextLabel", { Size = UDim2.fromOffset(150, 40), Position = UDim2.fromOffset
     TextColor3 = C.accent, TextXAlignment = Enum.TextXAlignment.Left,
     BackgroundTransparency = 1 }, bar)
 new("TextLabel", { Size = UDim2.fromOffset(530, 40), Position = UDim2.fromOffset(147, 0),
-    Text = "v5.9  |  " .. Store.playerName .. "  (@" .. player.Name .. ")", Font = Enum.Font.Gotham,
+    Text = "v6.0  |  " .. Store.playerName .. "  (@" .. player.Name .. ")", Font = Enum.Font.Gotham,
     TextSize = 11, TextColor3 = C.muted, TextXAlignment = Enum.TextXAlignment.Left,
     BackgroundTransparency = 1 }, bar)
 local close = new("TextButton", { Size = UDim2.fromOffset(38, 30),
@@ -2737,7 +2741,7 @@ uiNotify = function(msg)
     if statusLine.Parent then statusLine.Text = tostring(msg) end
     task.delay(6, function()
         if Core.alive and token == noteToken and statusLine.Parent then
-            statusLine.Text = "DarkyHub v5.9  |  RightShift to toggle"
+            statusLine.Text = "DarkyHub v6.0  |  RightShift to toggle"
         end
     end)
 end
@@ -3184,7 +3188,13 @@ toggle(playSec, "Prefer placement remotes", "remoteOnly")
 toggle(playSec, "Hybrid fallback for marker-only placements", "allowScreenFallback")
 toggle(playSec, "Minimize DarkyHub during placements", "minimizeOnPlacement")
 toggle(playSec, "Restore recorded camera for input placement", "useRecordedCamera")
-toggle(playSec, "Honor the wave each placement was recorded on", "placementByWave")
+toggle(playSec, "OPTIONAL: Schedule placements by recorded wave", "placementByWave")
+button(playSec, "Disable wave timing and save", function()
+    Store.settings.placementByWave = false
+    Store.saveSettings()
+    refreshToggles()
+    uiNotify("Wave timing disabled. Restart macro to apply.")
+end)
 local mapInfo = label(playSec, "Current map: " .. Map.name, C.text)
 macroDD = cycle(playSec, "Macro for current map", function()
     return sortedKeys(Macro.library())
@@ -3198,7 +3208,7 @@ end, function(v)
     if Macro.selected ~= v then Macro.select(v) end
     macroDD.refresh(v)
 end, Macro.selected)
-toggle(matchMacroSec, "Auto-start selected macro at wave 1", "autoPlay")
+toggle(matchMacroSec, "Auto-start macro when match is detected", "autoPlay")
 local macroPlayButton = button(matchMacroSec, "PLAY MACRO", function(btn)
     if Macro.playing then
         Macro.stopPlay()
@@ -3975,6 +3985,6 @@ env.DarkyHubUnload = function()
     -- Installed __namecall hooks stay in the executor chain, but become inert.
 end
 
-uiNotify(Spy.available and "DarkyHub v5.9 ready • Remote Spy active"
-    or "DarkyHub v5.9 ready • remote hook unavailable, GUI automations still work")
+uiNotify(Spy.available and "DarkyHub v6.0 ready • Remote Spy active"
+    or "DarkyHub v6.0 ready • remote hook unavailable, GUI automations still work")
 if not Store.hasFS then uiNotify("File APIs unavailable: macros will only exist in memory") end
