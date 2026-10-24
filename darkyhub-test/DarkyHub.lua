@@ -1,5 +1,5 @@
 --[[
- DarkyHub v5.7 | Candy Kingdom TD / Roblox tower-defense macro hub
+ DarkyHub v5.8 | Candy Kingdom TD / Roblox tower-defense macro hub
  Scoped-module Luau build. RightShift toggles menu; placement minimizes the hub.
 
  NOTE: Roblox games use different remotes, button names and unit models.
@@ -123,6 +123,7 @@ Store.settings = {
     stopWaveMaxSellAttempts = 3, stopWaveSellDelay = 1.0,
     individualUpgradeFallback = true,
     matchMode = "INF / Story", modeProfiles = {},
+    uiTheme = "Midnight", uiScale = 1, uiGlow = true, uiCompact = false,
     resultMode = "Off", autoJoin = false, autoChallenge = false,
     autoSummon = false, autoTrait = false, claimDaily = false,
     claimBP = false, claimLevel = false, showMarkers = true,
@@ -2666,11 +2667,25 @@ for _, root in ipairs(cleanupRoots) do
     end
 end
 
+-- Appearance presets are intentionally local to the view and never modify gameplay.
+local appearancePresets = {
+    Midnight = { bg = Color3.fromRGB(11,12,23), panel = Color3.fromRGB(22,24,40), section = Color3.fromRGB(29,32,52), top = Color3.fromRGB(17,19,34), accent = Color3.fromRGB(155,119,255), off = Color3.fromRGB(51,56,78) },
+    Obsidian = { bg = Color3.fromRGB(9,10,12), panel = Color3.fromRGB(19,21,24), section = Color3.fromRGB(28,30,34), top = Color3.fromRGB(14,16,18), accent = Color3.fromRGB(255,184,94), off = Color3.fromRGB(52,54,59) },
+    Ocean = { bg = Color3.fromRGB(9,19,29), panel = Color3.fromRGB(18,34,49), section = Color3.fromRGB(22,44,62), top = Color3.fromRGB(12,27,40), accent = Color3.fromRGB(62,197,230), off = Color3.fromRGB(44,71,88) },
+    Emerald = { bg = Color3.fromRGB(10,20,19), panel = Color3.fromRGB(20,36,32), section = Color3.fromRGB(28,48,42), top = Color3.fromRGB(14,28,26), accent = Color3.fromRGB(83,224,160), off = Color3.fromRGB(47,75,64) },
+    Rose = { bg = Color3.fromRGB(27,13,26), panel = Color3.fromRGB(44,24,43), section = Color3.fromRGB(57,33,54), top = Color3.fromRGB(34,18,34), accent = Color3.fromRGB(255,123,193), off = Color3.fromRGB(82,52,76) },
+}
+local function applyInitialPalette()
+    local preset = appearancePresets[Store.settings.uiTheme] or appearancePresets.Midnight
+    for key, value in pairs(preset) do C[key] = value end
+end
+applyInitialPalette()
 local main = new("Frame", { Size = UDim2.fromOffset(880, 570),
     Position = UDim2.new(0.5, -440, 0.5, -285), BackgroundColor3 = C.bg,
     BorderSizePixel = 0, Active = true }, GUI)
 corner(main, 12)
-new("UIStroke", { Color = C.accent, Thickness = 1, Transparency = 0.48 }, main)
+local mainScale = new("UIScale", { Scale = math.clamp(tonumber(Store.settings.uiScale) or 1, 0.75, 1.25) }, main)
+local mainStroke = new("UIStroke", { Color = C.accent, Thickness = 1, Transparency = Store.settings.uiGlow == false and 0.9 or 0.35 }, main)
 local bar = new("Frame", { Size = UDim2.new(1, 0, 0, 44),
     BackgroundColor3 = C.top, BorderSizePixel = 0 }, main)
 corner(bar, 12)
@@ -2679,7 +2694,7 @@ new("TextLabel", { Size = UDim2.fromOffset(150, 40), Position = UDim2.fromOffset
     TextColor3 = C.accent, TextXAlignment = Enum.TextXAlignment.Left,
     BackgroundTransparency = 1 }, bar)
 new("TextLabel", { Size = UDim2.fromOffset(530, 40), Position = UDim2.fromOffset(147, 0),
-    Text = "v5.7  |  " .. Store.playerName .. "  (@" .. player.Name .. ")", Font = Enum.Font.Gotham,
+    Text = "v5.8  |  " .. Store.playerName .. "  (@" .. player.Name .. ")", Font = Enum.Font.Gotham,
     TextSize = 11, TextColor3 = C.muted, TextXAlignment = Enum.TextXAlignment.Left,
     BackgroundTransparency = 1 }, bar)
 local close = new("TextButton", { Size = UDim2.fromOffset(38, 30),
@@ -2706,7 +2721,7 @@ uiNotify = function(msg)
     if statusLine.Parent then statusLine.Text = tostring(msg) end
     task.delay(6, function()
         if Core.alive and token == noteToken and statusLine.Parent then
-            statusLine.Text = "DarkyHub v5.7  |  RightShift to toggle"
+            statusLine.Text = "DarkyHub v5.8  |  RightShift to toggle"
         end
     end)
 end
@@ -3555,6 +3570,79 @@ end)
 
 -- SETTINGS TAB
 local settingsPage = UI.pageCreate("Settings")
+-- Scope appearance controls to avoid Luau 200-register limit.
+do
+    local visualSec = section(settingsPage.R, "Appearance  |  Make DarkyHub yours")
+    label(visualSec, "Theme, glow and window scale are saved separately for each player")
+    local function themeApply(name)
+        local palette = appearancePresets[name]
+        if not palette then return end
+        local before = {}
+        for k, newColor in pairs(palette) do
+            before[k] = C[k]
+            C[k] = newColor
+        end
+        -- Recolor only recognized UI theme colors, not player/game objects.
+        for _, obj in ipairs(GUI:GetDescendants()) do
+            if obj:IsA("GuiObject") then
+                for k, prior in pairs(before) do
+                    if obj.BackgroundColor3 == prior then obj.BackgroundColor3 = C[k]; break end
+                end
+                for k, prior in pairs(before) do
+                    if obj.TextColor3 == prior then obj.TextColor3 = C[k]; break end
+                end
+                if obj:IsA("ScrollingFrame") then
+                    for k, prior in pairs(before) do
+                        if obj.ScrollBarImageColor3 == prior then obj.ScrollBarImageColor3 = C[k]; break end
+                    end
+                end
+            elseif obj:IsA("UIStroke") then
+                for k, prior in pairs(before) do
+                    if obj.Color == prior then obj.Color = C[k]; break end
+                end
+            end
+        end
+        -- Match active tab highlights to the new accent.
+        UI.show(UI.page)
+    end
+    cycle(visualSec, "Color theme", function()
+        return { "Midnight", "Obsidian", "Ocean", "Emerald", "Rose" }
+    end, function(name)
+        if name then
+            Store.settings.uiTheme = name
+            themeApply(name)
+            Store.saveSettings()
+        end
+    end, Store.settings.uiTheme)
+    local preview = label(visualSec, "LIVE PREVIEW  |  DarkyHub", C.accent)
+    local scaleDisplay = label(visualSec, "Window size: " .. tostring(math.floor(mainScale.Scale * 100 + 0.5)) .. "%", C.text)
+    local function setScale(delta)
+        local scaled = math.clamp(math.floor((mainScale.Scale + delta) * 20 + 0.5) / 20, 0.75, 1.25)
+        mainScale.Scale = scaled
+        Store.settings.uiScale = scaled
+        scaleDisplay.Text = "Window size: " .. tostring(math.floor(scaled * 100 + 0.5)) .. "%"
+        Store.saveSettings()
+    end
+    button(visualSec, "Smaller UI  -", function() setScale(-0.05) end)
+    button(visualSec, "Larger UI  +", function() setScale(0.05) end)
+    button(visualSec, "Toggle neon window border", function()
+        Store.settings.uiGlow = not Store.settings.uiGlow
+        mainStroke.Transparency = Store.settings.uiGlow and 0.35 or 0.9
+        Store.saveSettings()
+        uiNotify("Glow " .. (Store.settings.uiGlow and "enabled" or "disabled"))
+    end)
+    button(visualSec, "Reset appearance to default", function()
+        Store.settings.uiTheme = "Midnight"
+        Store.settings.uiGlow = true
+        Store.settings.uiScale = 1
+        mainScale.Scale = 1
+        mainStroke.Transparency = 0.35
+        scaleDisplay.Text = "Window size: 100%"
+        themeApply("Midnight")
+        Store.saveSettings()
+        uiNotify("Appearance reset")
+    end)
+end
 local settingsSec = section(settingsPage.L, "Data and configuration")
 label(settingsSec, "Saves: workspace/DarkyHubV4/maps/<map name>/<macro name>.json\nEach map also saves its selected macro in map_settings.json\nRightShift toggles the hub  GUI results are auto-detected")
 button(settingsSec, "Save settings + actions now", function()
