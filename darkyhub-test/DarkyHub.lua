@@ -1,5 +1,5 @@
 --[[
- DarkyHub v5.6 | Candy Kingdom TD / Roblox tower-defense macro hub
+ DarkyHub v5.6.1 | Candy Kingdom TD / Roblox tower-defense macro hub
  Scoped-module Luau build. RightShift toggles menu; placement minimizes the hub.
 
  NOTE: Roblox games use different remotes, button names and unit models.
@@ -2156,6 +2156,7 @@ end
 -- ======================================================================
 local Shop = { status = "Shop not scanned", resetSeconds = nil,
     resets = 0, boughtThisReset = 0, boughtTotal = 0, lastResetAt = 0, recent = {} }
+local function initializeCandyShop()
 local function parseCountdown(s)
     local h, m, sec = s:match("(%d+):(%d%d):(%d%d)")
     if h then return tonumber(h) * 3600 + tonumber(m) * 60 + tonumber(sec) end
@@ -2257,6 +2258,9 @@ function Shop.tick()
         end
     end
 end
+
+end -- initializeCandyShop
+initializeCandyShop()
 
 -- ======================================================================
 --  DISCORD SESSION LOGGING: opt-in, throttle, no credential in exports
