@@ -1,5 +1,5 @@
 --[[
- DarkyHub v5.5.2 | Candy Kingdom TD / Roblox tower-defense macro hub
+ DarkyHub v5.6 | Candy Kingdom TD / Roblox tower-defense macro hub
  Scoped-module Luau build. RightShift toggles menu; placement minimizes the hub.
 
  NOTE: Roblox games use different remotes, button names and unit models.
@@ -114,7 +114,7 @@ Store.settings = {
     autoShop = false, shopAutoOpen = false, shopItems = "", shopMaxPerReset = 1, shopInterval = 8,
     webhookEnabled = false, webhookUrl = "", webhookWaves = true, webhookWaveEvery = 10,
     webhookResults = true, webhookDisconnect = true,
-    placementByWave = true, remoteOnly = true, allowScreenFallback = true, useRecordedCamera = true, minPlacementCash = 0,
+    placementByWave = false, remoteOnly = true, allowScreenFallback = true, useRecordedCamera = true, minPlacementCash = 0,
 
     autoPlay = false, autoSkip = false, autoUpgrade = false,
     manualUnitTarget = 0, -- 0 means macro/manual-confirm gate is required
@@ -995,17 +995,24 @@ function Verify.folder()
     end
     return nil
 end
+-- Ignore markers, effect parts and single-part placement circles.
+function Verify.realTower(unit)
+    if not unit or not unit:IsA("Model") or unit.Name:match("^Placement_") then return false end
+    local n = 0
+    for _, part in ipairs(unit:GetDescendants()) do
+        if part:IsA("BasePart") then n += 1; if n >= 2 then return true end end
+    end
+    return false
+end
 function Verify.countNear(folder, pos)
     if not folder or not pos then return nil end
     local target = Vector3.new(pos[1], pos[2], pos[3])
     local count = 0
     for _, unit in ipairs(folder:GetChildren()) do
         local point
-        if unit:IsA("Model") then
+        if Verify.realTower(unit) then
             local ok, cf = pcall(function() return unit:GetPivot() end)
             point = ok and cf.Position or nil
-        elseif unit:IsA("BasePart") then
-            point = unit.Position
         end
         if point and (point - target).Magnitude <= 12 then count = count + 1 end
     end
@@ -1018,10 +1025,10 @@ function Verify.occupied(folder, pos)
     local target = Vector3.new(pos[1], pos[2], pos[3])
     local radius = tonumber(Store.settings.occupancyRadius) or 4.5
     for _, unit in ipairs(folder:GetChildren()) do
-        if unit:IsA("Model") or unit:IsA("BasePart") then
+        if Verify.realTower(unit) then
             local pivot
             local ok = pcall(function()
-                pivot = unit:IsA("Model") and unit:GetPivot().Position or unit.Position
+                pivot = unit:GetPivot().Position
             end)
             if ok and pivot and (Vector3.new(pivot.X, 0, pivot.Z) - Vector3.new(target.X, 0, target.Z)).Magnitude <= radius then
                 return true, unit.Name
@@ -1035,7 +1042,7 @@ function Verify.manualCount()
     if not folder then return nil end
     local count = 0
     for _, item in ipairs(folder:GetChildren()) do
-        if item:IsA("Model") or item:IsA("BasePart") then
+        if Verify.realTower(item) then
             -- A manually specified folder is recommended: automatic unit counting is
             -- unreliable for games that combine towers and enemies in one container.
             count = count + 1
@@ -1143,7 +1150,7 @@ function Macro.startPlay()
             Macro.dispatchedPlacements, Macro.failures, Macro.unverified = placed, failed, unknown
         end
         local function attemptOne(index, step)
-            if not active() or not pending[index] or attempted[index] >= tries then return end
+            if not active() or not pending[index] or attempted[index] >= tries or sentUnverified[index] then return end
             local folder = Verify.folder()
             local occupied, unitName = Verify.occupied(folder, step.pos)
             if occupied then
@@ -1172,9 +1179,8 @@ function Macro.startPlay()
                 sentUnverified[index] = nil
             elseif verdict == "unknown" and ok then
                 -- No proof either way: do not send duplicate requests on next pass.
-                pending[index] = nil
                 sentUnverified[index] = true
-                Macro.lastFailure = "Sent but unverified: set Tower unit folder to verify"
+                Macro.lastFailure = "Unverified placement at XYZ: no hero confirmation"
             else
                 Macro.lastFailure = tostring(reason or "Placement rejected")
             end
@@ -1214,14 +1220,14 @@ function Macro.startPlay()
                     local occupied = Verify.occupied(Verify.folder(), step.pos)
                     if occupied then pending[index] = nil; sentUnverified[index] = nil
                     else remaining = remaining + 1 end
-                    if attempted[index] < tries then eligible = eligible + 1 end
+                    if attempted[index] < tries and not sentUnverified[index] then eligible = eligible + 1 end
                 end
             end
             if remaining == 0 or eligible == 0 then break end
             if not pauseOrCancel(10, token) then return end
             for index, step in ipairs(placements) do
                 if not active() then return end
-                if pending[index] and attempted[index] < tries then
+                if pending[index] and attempted[index] < tries and not sentUnverified[index] then
                     local targetWave = tonumber(step.wave) or 1
                     if not Store.settings.placementByWave or (Detect.wave and Detect.wave >= targetWave) then
                         attemptOne(index, step)
