@@ -1,5 +1,5 @@
 --[[
- DarkyHub v5.6.1 | Candy Kingdom TD / Roblox tower-defense macro hub
+ DarkyHub v5.6.2 | Candy Kingdom TD / Roblox tower-defense macro hub
  Scoped-module Luau build. RightShift toggles menu; placement minimizes the hub.
 
  NOTE: Roblox games use different remotes, button names and unit models.
@@ -1635,6 +1635,18 @@ local function traitReached(target)
     end
     return false
 end
+-- Hub transition gate: prevent macro, upgrade, and result-button interference.
+Core.hubTransition = false
+Core.hubTransitionAt = 0
+local function beginHubTransition()
+    if Core.hubTransition then return end
+    Core.hubTransition = true
+    Core.hubTransitionAt = os.clock()
+    Macro.stopPlay()
+    if GUI then GUI.Enabled = false end
+    if Core.placementHudGui then Core.placementHudGui.Enabled = false end
+    log("Returning to Hub: automation paused")
+end
 local RESULT_LABELS = {
     Replay = { "TRY AGAIN", "REPLAY", "PLAY AGAIN", "RETRY" },
     ["Next Stage"] = { "NEXT STAGE", "NEXT LEVEL", "NEXT" },
@@ -1652,6 +1664,15 @@ function Auto.tick()
         uiNotify("Map changed: " .. Map.name)
     end
     Detect.scan()
+    if Core.hubTransition then
+        -- A failed/no-op navigation must not lock DarkyHub forever.
+        if os.clock() - Core.hubTransitionAt > 20 then
+            Core.hubTransition = false
+            if GUI then GUI.Enabled = true end
+        else
+            return
+        end
+    end
     local s = Store.settings
     Auto.waiting = ""
     -- Halloween Raid: NEXT -> POUR 1 BUG MILK -> PLAY AGAIN? -> YES.
@@ -1742,6 +1763,7 @@ function Auto.tick()
                 worked = Actions.perform(RESULT_SLOTS[mode], {})
             end
             if worked then
+                if mode == "Lobby" then beginHubTransition() end
                 log("Result GUI clicked: " .. mode)
                 if (s.autoRaid or s.isRaidMatch) and mode == "Next Stage" and Raid then
                     Raid.noteNextStage(Detect.resultSerial)
@@ -3717,7 +3739,7 @@ env.DarkyHubUnload = function()
     Player.stopFly()
     Markers.clear()
     if Player.oldSpeed and humanoid() then humanoid().WalkSpeed = Player.oldSpeed end
-    writeJSON(Store.root .. "/settings.json", Store.settings)
+    writeJSON(Store.settingsFile, Store.settings)
     Store.saveActions()
     for _, c in ipairs(Core.connections) do pcall(function() c:Disconnect() end) end
     if GUI then GUI:Destroy() end
