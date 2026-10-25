@@ -344,7 +344,12 @@ local function directButton(title,x,y,width,fn)
  btn.TextSize=11;btn.Font=Enum.Font.GothamBold;btn.Parent=labWindow
  Instance.new("UICorner",btn).CornerRadius=UDim.new(0,6)
  add(btn.Activated:Connect(function()
-  local ok,msg=fn();labStatus.Text=ok and ("TEST: "..msg) or ("Error: "..msg)
+  local ran,ok,msg=pcall(fn)
+  if not ran then
+   labStatus.Text="TEST callback error: "..tostring(ok)
+  else
+   labStatus.Text=(ok and "TEST: " or "Error: ")..tostring(msg)
+  end
  end))
  return btn
 end
