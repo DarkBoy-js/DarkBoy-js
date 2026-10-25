@@ -5,7 +5,7 @@ local P=game:GetService("Players").LocalPlayer
 local HS=game:GetService("HttpService")
 local env=type(getgenv)=="function" and getgenv() or _G
 if env.DarkyRemoteLab and env.DarkyRemoteLab.stop then pcall(env.DarkyRemoteLab.stop) end
-local R={version="1.0",active=true,mode="off",calls={},last={},reports={},session=os.time()}
+local R={version="1.1",active=true,mode="off",calls={},last={},reports={},session=os.time()}
 env.DarkyRemoteLab=R
 local root="DarkyHubRemoteLab"
 local function path(o)
@@ -67,7 +67,7 @@ function R.stopCapture()
  R.mode="off"
  local result={}
  for _,c in ipairs(R.calls) do
-  result[#result+1]={path=c.path,method=c.method,args=c.serialized,at=c.time,mode=c.mode}
+  result[#result+1]={path=c.path,method=c.method,args=c.serialized,at=c.time,mode=c.mode,caller=c.caller}
  end
  table.insert(R.reports,{at=os.time(),placeId=game.PlaceId,mode="capture",calls=result})
  local ok,file=R.export("capture")
@@ -111,11 +111,11 @@ if not router then
     if type(checkcaller)=="function" then
      local ok,yes=pcall(checkcaller);ourCall=ok and yes or false
     end
-    if not ourCall then
+    if true then
      local args=table.pack(...)
      local serial={}
      for i=1,math.min(args.n,18) do serial[i]=describe(args[i]) end
-     local item={remote=self,method=method,path=path(self),arguments=args,serialized=serial,time=os.clock(),mode=receiver.mode}
+     local item={remote=self,method=method,path=path(self),arguments=args,serialized=serial,time=os.clock(),mode=receiver.mode,caller=ourCall}
      table.insert(receiver.calls,item)
      if #receiver.calls>40 then table.remove(receiver.calls,1) end
      print("[RemoteLab]",receiver.mode,method,item.path,"args",args.n)
