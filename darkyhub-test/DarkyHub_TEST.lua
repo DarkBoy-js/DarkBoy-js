@@ -256,7 +256,18 @@ add(launch.Activated:Connect(function()
     local yes,reason=click(button)
     updateInfo(yes and ("Challenge "..entry.id.." Play requested — check lobby status") or tostring(reason))
    else
+    -- Stages from another world exist in the catalog but their button is hidden.
+    local worlds=find(pg,"HubWindows/Stages/Pop/Panel/Fill/Select/Worlds")
+    local worldButton=worlds and worlds:FindFirstChild("World_"..tostring(entry.world))
+    if worldButton and isVisible(worldButton) then
+     click(worldButton)
+     task.wait(0.3)
+    end
     button=stageRows() and stageRows():FindFirstChild(entry.id)
+    if not button or not isVisible(button) then
+     updateInfo("Stage "..entry.id.." is not visible in its game world menu. Open AREAS, choose "..tostring(entry.world)..", then retry.")
+     return
+    end
     local selected,reason=click(button)
     if not selected then updateInfo("Stage selection failed: "..tostring(reason));return end
     task.wait(0.35)
