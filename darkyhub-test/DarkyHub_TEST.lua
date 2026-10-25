@@ -1,4 +1,4 @@
--- DarkyHub TEST ONLY | stage catalog navigation prototype v1.3
+-- DarkyHub TEST ONLY | stage catalog navigation prototype v1.4
 -- Loads the current public DarkyHub; private main repo is not modified.
 local Players=game:GetService("Players")
 local player=Players.LocalPlayer
@@ -272,7 +272,7 @@ end
 -- TEST REMOTE LAB controls: learn the real server call behind Play/Place
 local labWindow=Instance.new("Frame")
 labWindow.Name="RemoteLabPanel"
-labWindow.Size=UDim2.fromOffset(440,195)
+labWindow.Size=UDim2.fromOffset(440,242)
 labWindow.Position=UDim2.new(0,20,0.5,247)
 labWindow.BackgroundColor3=C.bg
 labWindow.BorderSizePixel=0
@@ -316,8 +316,47 @@ end)
 labButton("PRINT CAPTURE",226,112,205,function()
  local r=lab();if r then r.printAll();labStatus.Text="Printed captured remote calls to console."end
 end)
+-- Confirmed remotes from 515-event upload: only use exact known method/arguments.
+-- CreateMatch requires an unknown third value, so remote-join remains disabled.
+local ReplicatedStorage=game:GetService("ReplicatedStorage")
+local function confirmedAct(...)
+ if game.PlaceId~=90286053025127 then return false,"Only available inside a match" end
+ local remotes=ReplicatedStorage:FindFirstChild("MatchRemotes")
+ local act=remotes and remotes:FindFirstChild("Act")
+ if not act or not act:IsA("RemoteFunction") then return false,"MatchRemotes.Act not found" end
+ local args=table.pack(...)
+ local ok,result=pcall(function()return act:InvokeServer(table.unpack(args,1,args.n))end)
+ return ok,ok and ("Request sent; server reply: "..tostring(result)) or tostring(result)
+end
+T.confirmedAct=confirmedAct
+function T.placeUnit(unitName,x,y)
+ if type(unitName)~="string" or not unitName:match("^[%w_]+$") then return false,"Invalid unit name"end
+ x=tonumber(x);y=tonumber(y)
+ if not x or not y or math.abs(x)>10000 or math.abs(y)>10000 then return false,"Invalid map coordinates"end
+ return confirmedAct("place",unitName,x,y)
+end
+function T.upgradeAll()return confirmedAct("upgradeall")end
+function T.startWave()return confirmedAct("start")end
+local function directButton(title,x,y,width,fn)
+ local btn=Instance.new("TextButton")
+ btn.Size=UDim2.fromOffset(width,31);btn.Position=UDim2.fromOffset(x,y)
+ btn.BackgroundColor3=C.panel;btn.TextColor3=C.text;btn.Text=title
+ btn.TextSize=11;btn.Font=Enum.Font.GothamBold;btn.Parent=labWindow
+ Instance.new("UICorner",btn).CornerRadius=UDim.new(0,6)
+ add(btn.Activated:Connect(function()
+  local ok,msg=fn();labStatus.Text=ok and ("TEST: "..msg) or ("Error: "..msg)
+ end))
+ return btn
+end
+
+-- Placement uses last known coordinates only when explicitly requested.
+directButton("START WAVE",8,149,132,function()return T.startWave()end)
+directButton("UPGRADE ALL",149,149,132,function()return T.upgradeAll()end)
+directButton("PLACE CANDY (TEST)",290,149,141,function()
+ return T.placeUnit("CandyElemental",-39.744354248046875,-13.94955825805664)
+end)
 local labFoot=label(labWindow,"Replay uses original arguments in this session. Results are NOT guaranteed.",30)
-labFoot.Position=UDim2.fromOffset(8,153)
+labFoot.Position=UDim2.fromOffset(8,196)
 T.refresh()
 task.spawn(function()
  while gui.Parent do task.wait(8);T.scan() end
