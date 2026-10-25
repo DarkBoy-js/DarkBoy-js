@@ -153,17 +153,26 @@ local function click(btn)
  return ok,ok and "Screen click requested" or "Executor cannot activate this button"
 end
 local function showGameMenu(kind)
- local root=kind=="Challenge" and find(pg,"HubWindows/Challenges/Pop")
-  or find(pg,"HubWindows/Stages/Pop")
- if root and root:IsA("GuiObject") and root.Visible then return true end
- -- Request opening through the game's own accessible hub controls.
- local menu=kind=="Challenge" and find(pg,"HubHUD/Areas") or
-  (find(pg,"HubHUD/Play") or find(pg,"HubHUD/Areas"))
- local ok,reason=click(menu)
- if ok then task.wait(0.7) end
- root=kind=="Challenge" and find(pg,"HubWindows/Challenges/Pop")
-  or find(pg,"HubWindows/Stages/Pop")
- return root and root.Visible or false,ok and "Open the "..kind.." panel (Areas or world portal)" or reason
+ local target=kind=="Challenge" and "Challenges" or "Stages"
+ local pop=find(pg,"HubWindows/"..target.."/Pop")
+ if pop and isVisible(pop) then return true end
+ -- Use the native hub controls, not an unverified CreateMatch payload.
+ local options=kind=="Challenge" and {
+  "HubHUD/Challenges","HubHUD/Areas","HubHUD/Play"
+ } or {"HubHUD/Areas","HubHUD/Play"}
+ local attempted=false
+ for _,p in ipairs(options)do
+  local btn=find(pg,p)
+  if btn and isVisible(btn) then
+   attempted=true
+   local ok=click(btn)
+   if ok then task.wait(0.35) end
+   pop=find(pg,"HubWindows/"..target.."/Pop")
+   if pop and isVisible(pop) then return true end
+  end
+ end
+ return false,attempted and ("The "..target.." menu did not open; use the game's AREAS button once") or
+  "Could not find a visible Areas control"
 end
 local function locatePlay(container)
  if not container then return nil end
