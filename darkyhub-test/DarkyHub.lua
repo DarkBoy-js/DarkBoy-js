@@ -182,6 +182,10 @@ function Store.load()
             if type(s[key]) == type(oldValue) then Store.settings[key] = s[key] end
         end
     end
+    Store.settings.autoPlay = false
+    Store.settings.resultMode = "Off"
+    Store.settings.replayOnDefeat = false
+    Store.settings.stopWaveReplay = false
     local a = readJSON(Store.root .. "/actions.json") or readJSON("DarkyHubV3/actions.json")
     if a then
         for _, k in ipairs({ "slots", "join", "challenge" }) do
@@ -1650,6 +1654,21 @@ end
 -- Hub transition gate: prevent macro, upgrade, and result-button interference.
 Core.hubTransition = false
 Core.hubTransitionAt = 0
+local function testDirectHubTeleport()
+    Macro.stopPlay()
+    Core.hubTransition = true
+    Core.hubTransitionAt = os.clock()
+    local ok, err = pcall(function()
+        TeleportService:Teleport(111053011787075, player)
+    end)
+    if not ok then
+        Core.hubTransition = false
+        uiNotify("Hub teleport failed: " .. tostring(err))
+    else
+        uiNotify("Requesting hub teleport...")
+    end
+    return ok
+end
 local function beginHubTransition()
     if Core.hubTransition then return end
     Core.hubTransition = true
@@ -1750,7 +1769,7 @@ function Auto.tick()
         if os.clock() - Detect.resultSince < 1.6 then return end
         -- The Match tab selector is authoritative. Raid / Challenge / Infinite
         -- settings must NOT change it behind the user's back.
-        local modeChosen = s.resultMode or "Off"
+        local modeChosen = "Off" -- TEST: manual-only result actions
         if modeChosen ~= "Off" and modeChosen ~= "Replay"
             and modeChosen ~= "Next Stage" and modeChosen ~= "Lobby" then
             modeChosen = "Off"
@@ -3074,7 +3093,7 @@ local resultDD = cycle(resultSec, "Select ONE action", function()
 end, function(v)
     if v then Store.settings.resultMode = v; Store.saveSettings() end
 end, Store.settings.resultMode)
-toggle(resultSec, "Try Again automatically after defeat", "replayOnDefeat")
+label(resultSec, "TEST: Automatic result replay is disabled.")
 label(resultSec, "This choice OVERRIDES Raid and Challenge defaults. Next Stage on Raid: NEXT then POUR 1 BUG MILK then YES. Off never exits automatically.")
 -- MODE SELECTOR: three workflows, with settings remembered separately for each mode.
 -- This block remains within initializeControls to avoid main-chunk register pressure.
@@ -3149,6 +3168,10 @@ do
                 Store.settings[key] = val
             end
         end
+        Store.settings.autoPlay = false
+        Store.settings.resultMode = "Off"
+        Store.settings.replayOnDefeat = false
+        Store.settings.stopWaveReplay = false
         -- A Raid is always a raid, regardless of stale saved toggles.
         Store.settings.isRaidMatch = target == "Raid"
         if target == "Challenge" then Store.settings.autoRaid = false end
@@ -3269,10 +3292,9 @@ button(matchMacroSec, "Refresh map macros", function()
     macroDD.refresh(Macro.selected)
     matchMacroDD.refresh(Macro.selected)
 end)
+button(matchMacroSec, "RETURN TO HUB (DIRECT TEST)", function() testDirectHubTeleport() end)
 label(matchMacroSec, "Current map and stage macros are saved in the Macros tab. The selected macro also appears here.")
-toggle(playSec, "Auto Play on match start", "autoPlay", function(v)
-    if v and Detect.inMatch and Detect.wave and Detect.wave <= 1 and not Macro.playing then Macro.startPlay() end
-end)
+label(playSec, "TEST: Automatic macro start disabled. Use PLAY MACRO only.")
 local modeDD = cycle(playSec, "Playback timing", function() return { "Timed", "Fixed" } end,
     function(v)
         if v then Store.settings.playbackMode = v; Store.saveSettings() end
