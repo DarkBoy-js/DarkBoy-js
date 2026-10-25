@@ -1,4 +1,4 @@
--- DarkyHub TEST Live Recorder v2.0
+-- DarkyHub TEST Live Recorder v2.1
 -- Passive client-visible interactions; never fires game remotes.
 local Players=game:GetService("Players")
 local RS=game:GetService("ReplicatedStorage")
@@ -8,7 +8,7 @@ local player=Players.LocalPlayer
 local pg=player:WaitForChild("PlayerGui")
 local env=type(getgenv)=="function" and getgenv() or _G
 if env.DarkyLiveRecorder and env.DarkyLiveRecorder.stop then pcall(env.DarkyLiveRecorder.stop) end
-local R={version="2.0",active=true,events={},sequence=0,connections={},seen=setmetatable({}, {__mode="k"}),lastState="",session=tostring(os.time()).."-"..math.random(1000,9999),autosaves=0}
+local R={version="2.1",active=true,events={},sequence=0,connections={},seen=setmetatable({}, {__mode="k"}),lastState="",session=tostring(os.time()).."-"..math.random(1000,9999),autosaves=0,lastGuiAction=nil,hookStatus={}}
 env.DarkyLiveRecorder=R
 local ROOT="DarkyHubLiveRecorder"
 local URL="https://raw.githubusercontent.com/DarkBoy-js/DarkBoy-js/main/darkyhub-test/test-loader.lua"
@@ -123,6 +123,7 @@ local function watch(o)
   if not visible(o) then return end
   local text=o:IsA("TextButton") and name(o.Text) or ""
   local action=path(o)
+  R.lastGuiAction={path=action,text=text,at=os.clock()}
   record("gui","Activated:"..action,{name=o.Name,text=text,class=o.ClassName},true)
   task.defer(function()
    if R.active then
@@ -145,29 +146,76 @@ end)
 connect(TS.TeleportInitFailed,function(_,result,message)
  record("teleport","failed",{result=tostring(result),message=name(message)},true)
 end)
+-- One persistent dispatcher for BOTH namecall and direct method interception.
+-- Duplicate callbacks are suppressed when both hooks observe the same call.
 local router=env.DarkyLiveRecorderRouter
-if not router and type(hookmetamethod)=="function" and type(getnamecallmethod)=="function" then
- router={current=R}
+if not router then router={current=R,recent={}};env.DarkyLiveRecorderRouter=router end
+router.current=R
+local function observe(self,method,args,via)
+ local target=router.current
+ if not target or not target.active or typeof(self)~="Instance" then return end
+ local valid=(method=="FireServer" and self:IsA("RemoteEvent")) or (method=="InvokeServer" and self:IsA("RemoteFunction"))
+ if not valid then return end
+ local p=path(self)
+ if sensitive(p) then return end
+ local clock=os.clock()
+ local signature=method..":"..p
+ if router.recent[signature] and clock-router.recent[signature]<0.045 then return end
+ router.recent[signature]=clock
+ local out={}
+ for i=1,math.min(args.n,20)do
+  local ok,v=pcall(encode,args[i],0,tostring(i))
+  out[i]=ok and v or "[SERIALIZATION ERROR]"
+ end
+ local gui=target.lastGuiAction
+ local context=gui and clock-gui.at<8 and {path=gui.path,text=gui.text,secondsAfter=math.floor((clock-gui.at)*100)/100} or nil
+ record("remote",method..":"..p,{argc=args.n,args=out,interception=via,precedingGui=context},true)
+end
+if not router.namecallInstalled and type(hookmetamethod)=="function" and type(getnamecallmethod)=="function" then
  local original
- local function hook(self,...)
+ local function intercept(self,...)
   local method=getnamecallmethod()
-  local target=router.current
-  if target and target.active and typeof(self)=="Instance"
-   and ((method=="FireServer" and self:IsA("RemoteEvent")) or (method=="InvokeServer" and self:IsA("RemoteFunction"))) then
-   local p=path(self)
-   if not sensitive(p) then
-    local args=table.pack(...)
-    local out={}
-    for i=1,math.min(args.n,20)do out[i]=encode(args[i],0,tostring(i))end
-    record("remote",method..":"..p,{argc=args.n,args=out},true)
-   end
+  if method=="FireServer" or method=="InvokeServer" then
+   local args=table.pack(...)
+   pcall(observe,self,method,args,"namecall")
   end
   return original(self,...)
  end
- local ok,err=pcall(function()original=hookmetamethod(game,"__namecall",type(newcclosure)=="function" and newcclosure(hook) or hook)end)
- if ok then env.DarkyLiveRecorderRouter=router else warn("[LiveRecorder] hook failed",err)end
+ local ok,err=pcall(function()
+  original=hookmetamethod(game,"__namecall",type(newcclosure)=="function" and newcclosure(intercept) or intercept)
+ end)
+ router.namecallInstalled=ok
+ if not ok then warn("[LiveRecorder] namecall hook failed",err)end
 end
-if env.DarkyLiveRecorderRouter then env.DarkyLiveRecorderRouter.current=R end
+if not router.directInstalled and type(hookfunction)=="function" then
+ local remoteEvent=Instance.new("RemoteEvent")
+ local remoteFunction=Instance.new("RemoteFunction")
+ local oldEvent,oldFunction
+ local function eventHook(self,...)
+  pcall(observe,self,"FireServer",table.pack(...),"direct")
+  return oldEvent(self,...)
+ end
+ local function functionHook(self,...)
+  pcall(observe,self,"InvokeServer",table.pack(...),"direct")
+  return oldFunction(self,...)
+ end
+ local ok1,err1=pcall(function()
+  oldEvent=hookfunction(remoteEvent.FireServer,type(newcclosure)=="function" and newcclosure(eventHook) or eventHook)
+ end)
+ local ok2,err2=pcall(function()
+  oldFunction=hookfunction(remoteFunction.InvokeServer,type(newcclosure)=="function" and newcclosure(functionHook) or functionHook)
+ end)
+ router.directInstalled=ok1 and ok2
+ router.directEvent=ok1;router.directFunction=ok2
+ if not ok1 then warn("[LiveRecorder] FireServer hook unavailable",err1)end
+ if not ok2 then warn("[LiveRecorder] InvokeServer hook unavailable",err2)end
+ remoteEvent:Destroy();remoteFunction:Destroy()
+end
+R.hookStatus={namecall=router.namecallInstalled==true,directFireServer=router.directEvent==true,directInvokeServer=router.directFunction==true}
+function R.healthcheck()
+ print("[LiveRecorder] v"..R.version,"hooks",HS:JSONEncode(R.hookStatus),"events",#R.events,"place",game.PlaceId)
+ return R.hookStatus
+end
 -- Read useful changes only; ignore continuously changing countdown labels.
 local function poll()
  local labels={}
@@ -219,7 +267,7 @@ end
 function R.printAll()
  for _,e in ipairs(R.events)do print(e.id,e.kind,e.action,HS:JSONEncode(e.data or {}))end
 end
-record("system",resume and "Resumed" or "Started",{placeId=game.PlaceId,teleportQueued=R.teleportQueued},true)
+record("system",resume and "Resumed" or "Started",{placeId=game.PlaceId,teleportQueued=R.teleportQueued,hooks=R.hookStatus},true)
 task.spawn(function()
  while R.active do
   task.wait(2)
