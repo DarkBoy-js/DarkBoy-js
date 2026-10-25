@@ -5,7 +5,7 @@ local P=game:GetService("Players").LocalPlayer
 local HS=game:GetService("HttpService")
 local env=type(getgenv)=="function" and getgenv() or _G
 if env.DarkyRemoteLab and env.DarkyRemoteLab.stop then pcall(env.DarkyRemoteLab.stop) end
-local R={version="1.2",active=true,mode="off",calls={},last={},reports={},session=os.time()}
+local R={version="1.3",active=true,mode="off",calls={},last={},reports={},session=os.time()}
 env.DarkyRemoteLab=R
 local root="DarkyHubRemoteLab"
 local function path(o)
@@ -103,27 +103,33 @@ if not router then
   local function interception(self,...)
    local method=getnamecallmethod()
    local receiver=router.receiver
+   -- Never inspect or serialize arguments inside __namecall; those operations
+   -- can replace the executor's current namecall method (InvokeServer).
    if receiver and receiver.active and receiver.mode~="off" and not receiver.replaying
-     and typeof(self)=="Instance"
-     and ((method=="FireServer" and self:IsA("RemoteEvent")) or
-          (method=="InvokeServer" and self:IsA("RemoteFunction"))) then
-    local ourCall=false
-    if type(checkcaller)=="function" then
-     local ok,yes=pcall(checkcaller);ourCall=ok and yes or false
-    end
-    if true then
-     local args=table.pack(...)
-     local serial={}
-     for i=1,math.min(args.n,18) do serial[i]=describe(args[i]) end
-     local p=path(self)
-     local ignored=p:find("/PlayerGui/Looks/",1,true) or p:find("/Looks/Wear",1,true)
-     if not ignored then
-     local item={remote=self,method=method,path=p,arguments=args,serialized=serial,time=os.clock(),mode=receiver.mode,caller=ourCall}
-     table.insert(receiver.calls,item)
-     if #receiver.calls>40 then table.remove(receiver.calls,1) end
-     print("[RemoteLab]",receiver.mode,method,item.path,"args",args.n)
-     end
-    end
+      and (method=="FireServer" or method=="InvokeServer") then
+    local args=table.pack(...)
+    task.defer(function()
+     local active=router.receiver
+     if not active or not active.active or active.mode=="off" then return end
+     local good,err=pcall(function()
+      if typeof(self)~="Instance" then return end
+      if not ((method=="FireServer" and self:IsA("RemoteEvent")) or
+       (method=="InvokeServer" and self:IsA("RemoteFunction"))) then return end
+      local ourCall=false
+      if type(checkcaller)=="function" then
+       local checked,yes=pcall(checkcaller);ourCall=checked and yes or false
+      end
+      local serial={}
+      for i=1,math.min(args.n,18) do serial[i]=describe(args[i]) end
+      local p=path(self)
+      if p:find("/PlayerGui/Looks/",1,true) or p:find("/Looks/Wear",1,true) then return end
+      local item={remote=self,method=method,path=p,arguments=args,serialized=serial,time=os.clock(),mode=active.mode,caller=ourCall}
+      table.insert(active.calls,item)
+      if #active.calls>40 then table.remove(active.calls,1)end
+      print("[RemoteLab]",active.mode,method,item.path,"args",args.n)
+     end)
+     if not good then warn("[RemoteLab] Deferred capture error:",err) end
+    end)
    end
    return previous(self,...)
   end
