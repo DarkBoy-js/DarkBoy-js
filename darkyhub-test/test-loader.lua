@@ -1,10 +1,10 @@
--- DarkyHub TEST Loader v1.9
+-- DarkyHub TEST Loader v2.0
 -- TEST ONLY: does not modify the private/main DarkyHub repository
 local base="https://raw.githubusercontent.com/DarkBoy-js/DarkBoy-js/main/darkyhub-test/"
 local env=type(getgenv)=="function" and getgenv() or _G
-env.DarkyHubTestLoaderVersion="1.9"
+env.DarkyHubTestLoaderVersion="2.0"
 local function start(name)
- local ok,source=pcall(function()return game:HttpGet(base..name.."?v=20261025-stage-world-menu")end)
+ local ok,source=pcall(function()return game:HttpGet(base..name.."?v=20261025-lobby-start")end)
  if not ok then warn("[DarkyHub TEST Loader] Download failed:",name,source);return false end
  local fn,err=loadstring(source)
  if not fn then warn("[DarkyHub TEST Loader] Compile failed:",name,err);return false end
