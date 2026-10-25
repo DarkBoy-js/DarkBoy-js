@@ -1,4 +1,4 @@
--- DarkyHub TEST Live Recorder v2.1
+-- DarkyHub TEST Live Recorder v2.2
 -- Passive client-visible interactions; never fires game remotes.
 local Players=game:GetService("Players")
 local RS=game:GetService("ReplicatedStorage")
@@ -8,7 +8,7 @@ local player=Players.LocalPlayer
 local pg=player:WaitForChild("PlayerGui")
 local env=type(getgenv)=="function" and getgenv() or _G
 if env.DarkyLiveRecorder and env.DarkyLiveRecorder.stop then pcall(env.DarkyLiveRecorder.stop) end
-local R={version="2.1",active=true,events={},sequence=0,connections={},seen=setmetatable({}, {__mode="k"}),lastState="",session=tostring(os.time()).."-"..math.random(1000,9999),autosaves=0,lastGuiAction=nil,hookStatus={}}
+local R={version="2.2",active=true,events={},sequence=0,connections={},seen=setmetatable({}, {__mode="k"}),lastState="",session=tostring(os.time()).."-"..math.random(1000,9999),autosaves=0,lastGuiAction=nil,hookStatus={}}
 env.DarkyLiveRecorder=R
 local ROOT="DarkyHubLiveRecorder"
 local URL="https://raw.githubusercontent.com/DarkBoy-js/DarkBoy-js/main/darkyhub-test/test-loader.lua"
@@ -77,7 +77,11 @@ function R.export()return snapshot("export")end
 local function checkpoint(critical)
  if type(writefile)~="function" then return end
  write("latest.json",state())
- if critical or R.sequence%40==0 then
+ -- JSONL stores individual events immediately, while snapshots are throttled.
+ local now=os.clock()
+ if (critical and (not R.lastCriticalSnapshot or now-R.lastCriticalSnapshot>12))
+    or (not critical and R.sequence%100==0) then
+  R.lastCriticalSnapshot=now
   snapshot(critical and "critical" or "periodic")
  end
 end
