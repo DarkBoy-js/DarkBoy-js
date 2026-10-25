@@ -1,4 +1,4 @@
--- DarkyHub TEST ONLY | stage catalog navigation prototype v1.5
+-- DarkyHub TEST ONLY | stage catalog navigation prototype v1.6
 -- Loads the current public DarkyHub; private main repo is not modified.
 local Players=game:GetService("Players")
 local player=Players.LocalPlayer
@@ -118,6 +118,7 @@ local function isVisible(node)
  if not node then return false end
  while node and node~=pg do
   if node:IsA("GuiObject") and not node.Visible then return false end
+  if node:IsA("ScreenGui") and not node.Enabled then return false end
   node=node.Parent
  end
  return true
@@ -187,6 +188,38 @@ local function locatePlay(container)
  end
  return nil
 end
+-- The Journey Reader confirmed Select/Play -> Lobby/Start -> teleport.
+-- Never start an existing lobby unrelated to the current requested join.
+local function ownedLobby()
+ for _,group in ipairs({"Stages","Challenges"}) do
+  local root="HubWindows/"..group.."/Pop/Panel/Fill/"
+  local lobby=find(pg,root.."Lobby")
+  local start=lobby and lobby:FindFirstChild("Start")
+  local hint=find(pg,root.."Hint/Fill/Text")
+  local caption=hint and (hint:IsA("TextLabel") or hint:IsA("TextButton")) and hint.Text or ""
+  if lobby and start and isVisible(lobby) and isVisible(start)
+    and tostring(caption):lower():find("you're the host",1,true) then
+   return start,group
+  end
+ end
+ return nil
+end
+local function startOwnLobbyAfterPlay(entry)
+ updateInfo(entry.id.." — Play requested. Waiting for your match lobby ...")
+ local deadline=os.clock()+8
+ while os.clock()<deadline and game.PlaceId==111053011787075 do
+  local start,group=ownedLobby()
+  if start then
+   local sent,reason=click(start)
+   updateInfo(sent and ("Started "..entry.id.." lobby via "..group.."/Lobby/Start — waiting for game teleport")
+     or ("Lobby Start could not activate: "..tostring(reason)))
+   return sent
+  end
+  task.wait(0.2)
+ end
+ updateInfo("Play requested for "..entry.id.." but no owned lobby was confirmed. Open its lobby and press START manually.")
+ return false
+end
 function T.scan()
  readStages();readChallenges()
  return T.catalog
@@ -248,13 +281,18 @@ add(launch.Activated:Connect(function()
     updateInfo("Open the "..entry.kind.." menu in the game, then press Join again. "..tostring(why))
     return
    end
+   if ownedLobby() then
+    updateInfo("An existing hosted lobby is open. Leave it before joining "..entry.id..".")
+    return
+   end
    local button
    if entry.kind=="Challenge" then
     local card=find(pg,"HubWindows/Challenges/Pop/Panel/Fill/"..entry.id)
     button=card and locatePlay(card)
     if not button then updateInfo("Challenge "..entry.id.." has no visible Play button. Open its card.");return end
     local yes,reason=click(button)
-    updateInfo(yes and ("Challenge "..entry.id.." Play requested — check lobby status") or tostring(reason))
+    if not yes then updateInfo("Challenge Play failed: "..tostring(reason));return end
+    startOwnLobbyAfterPlay(entry)
    else
     -- Stages from another world exist in the catalog but their button is hidden.
     local worlds=find(pg,"HubWindows/Stages/Pop/Panel/Fill/Select/Worlds")
@@ -272,10 +310,12 @@ add(launch.Activated:Connect(function()
     if not selected then updateInfo("Stage selection failed: "..tostring(reason));return end
     task.wait(0.35)
     local picker=find(pg,"HubWindows/Stages/Pop/Panel/Fill/Select")
-    local play=picker and locatePlay(picker)
+    local play=picker and picker:FindFirstChild("Play")
+    if not (play and isVisible(play)) then play=picker and locatePlay(picker) end
     if not play then updateInfo(entry.id.." selected. Open the game Play confirmation and try again.");return end
     local yes,why=click(play)
-    updateInfo(yes and (entry.id.." Play requested — check stage lobby") or tostring(why))
+    if not yes then updateInfo("Stage Play failed: "..tostring(why));return end
+    startOwnLobbyAfterPlay(entry)
    end
    T.save()
   end)
