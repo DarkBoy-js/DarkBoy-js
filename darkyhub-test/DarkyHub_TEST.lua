@@ -272,7 +272,7 @@ end
 -- TEST REMOTE LAB controls: learn the real server call behind Play/Place
 local labWindow=Instance.new("Frame")
 labWindow.Name="RemoteLabPanel"
-labWindow.Size=UDim2.fromOffset(440,242)
+labWindow.Size=UDim2.fromOffset(440,280)
 labWindow.Position=UDim2.new(0,20,0.5,247)
 labWindow.BackgroundColor3=C.bg
 labWindow.BorderSizePixel=0
@@ -359,6 +359,13 @@ directButton("START WAVE",8,149,132,function()return T.startWave()end)
 directButton("UPGRADE ALL",149,149,132,function()return T.upgradeAll()end)
 directButton("PLACE CANDY (TEST)",290,149,141,function()
  return T.placeUnit("CandyElemental",-39.744354248046875,-13.94955825805664)
+end)
+directButton("RETURN TO HUB (TEST TELEPORT)",8,225,423,function()
+ if game.PlaceId==111053011787075 then return false,"Already in hub"end
+ local ok,err=pcall(function()
+  game:GetService("TeleportService"):Teleport(111053011787075,player)
+ end)
+ return ok,ok and "Hub teleport requested" or tostring(err)
 end)
 local labFoot=label(labWindow,"Replay uses original arguments in this session. Results are NOT guaranteed.",30)
 labFoot.Position=UDim2.fromOffset(8,196)
