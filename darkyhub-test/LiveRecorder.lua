@@ -171,13 +171,14 @@ local function observe(self,method,args,via)
  local context=gui and clock-gui.at<8 and {path=gui.path,text=gui.text,secondsAfter=math.floor((clock-gui.at)*100)/100} or nil
  record("remote",method..":"..p,{argc=args.n,args=out,interception=via,precedingGui=context},true)
 end
+router.observe=observe
 if not router.namecallInstalled and type(hookmetamethod)=="function" and type(getnamecallmethod)=="function" then
  local original
  local function intercept(self,...)
   local method=getnamecallmethod()
   if method=="FireServer" or method=="InvokeServer" then
    local args=table.pack(...)
-   pcall(observe,self,method,args,"namecall")
+   pcall(router.observe,self,method,args,"namecall")
   end
   return original(self,...)
  end
@@ -187,24 +188,26 @@ if not router.namecallInstalled and type(hookmetamethod)=="function" and type(ge
  router.namecallInstalled=ok
  if not ok then warn("[LiveRecorder] namecall hook failed",err)end
 end
-if not router.directInstalled and type(hookfunction)=="function" then
+if (not router.directEvent or not router.directFunction) and type(hookfunction)=="function" then
  local remoteEvent=Instance.new("RemoteEvent")
  local remoteFunction=Instance.new("RemoteFunction")
  local oldEvent,oldFunction
  local function eventHook(self,...)
-  pcall(observe,self,"FireServer",table.pack(...),"direct")
+  pcall(router.observe,self,"FireServer",table.pack(...),"direct")
   return oldEvent(self,...)
  end
  local function functionHook(self,...)
-  pcall(observe,self,"InvokeServer",table.pack(...),"direct")
+  pcall(router.observe,self,"InvokeServer",table.pack(...),"direct")
   return oldFunction(self,...)
  end
- local ok1,err1=pcall(function()
+ local ok1,err1=true,nil
+ if not router.directEvent then ok1,err1=pcall(function()
   oldEvent=hookfunction(remoteEvent.FireServer,type(newcclosure)=="function" and newcclosure(eventHook) or eventHook)
- end)
- local ok2,err2=pcall(function()
+ end) end
+ local ok2,err2=true,nil
+ if not router.directFunction then ok2,err2=pcall(function()
   oldFunction=hookfunction(remoteFunction.InvokeServer,type(newcclosure)=="function" and newcclosure(functionHook) or functionHook)
- end)
+ end) end
  router.directInstalled=ok1 and ok2
  router.directEvent=ok1;router.directFunction=ok2
  if not ok1 then warn("[LiveRecorder] FireServer hook unavailable",err1)end
