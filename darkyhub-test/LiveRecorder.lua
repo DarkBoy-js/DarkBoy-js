@@ -1,4 +1,4 @@
--- DarkyHub TEST Live Recorder v2.3
+-- DarkyHub TEST Live Recorder v2.4
 -- Passive client-visible interactions; never fires game remotes.
 local Players=game:GetService("Players")
 local RS=game:GetService("ReplicatedStorage")
@@ -8,7 +8,7 @@ local player=Players.LocalPlayer
 local pg=player:WaitForChild("PlayerGui")
 local env=type(getgenv)=="function" and getgenv() or _G
 if env.DarkyLiveRecorder and env.DarkyLiveRecorder.stop then pcall(env.DarkyLiveRecorder.stop) end
-local R={version="2.3",active=true,events={},sequence=0,connections={},seen=setmetatable({}, {__mode="k"}),lastState="",session=tostring(os.time()).."-"..math.random(1000,9999),autosaves=0,lastGuiAction=nil,hookStatus={}}
+local R={version="2.4",active=true,events={},sequence=0,connections={},seen=setmetatable({}, {__mode="k"}),lastState="",session=tostring(os.time()).."-"..math.random(1000,9999),autosaves=0,lastGuiAction=nil,hookStatus={}}
 env.DarkyLiveRecorder=R
 local ROOT="DarkyHubLiveRecorder"
 local URL="https://raw.githubusercontent.com/DarkBoy-js/DarkBoy-js/main/darkyhub-test/test-loader.lua"
@@ -216,7 +216,7 @@ if not router.namecallInstalled and type(hookmetamethod)=="function" and type(ge
   local method=getnamecallmethod()
   if method=="FireServer" or method=="InvokeServer" then
    local args=table.pack(...)
-   pcall(router.observe,self,method,args,"namecall")
+   task.defer(function() pcall(router.observe,self,method,args,"namecall") end)
   end
   return original(self,...)
  end
