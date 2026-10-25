@@ -1307,7 +1307,7 @@ local function captureRewards(texts)
                 seen[t] = true
                 table.insert(found, entry.obj.Text)
                 local amount = t:match("([%d,]+)%s*XP") or t:match("XP%s*[:%+X]*%s*([%d,]+)")
-                if amount then xp = xp + (tonumber(amount:gsub(",", "")) or 0) end
+                if amount then xp = xp + (tonumber((amount:gsub(",", ""))) or 0) end
             end
         end
     end
