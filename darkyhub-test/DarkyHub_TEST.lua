@@ -1,4 +1,4 @@
--- DarkyHub TEST ONLY | stage catalog navigation prototype v1.2
+-- DarkyHub TEST ONLY | stage catalog navigation prototype v1.3
 -- Loads the current public DarkyHub; private main repo is not modified.
 local Players=game:GetService("Players")
 local player=Players.LocalPlayer
@@ -269,6 +269,55 @@ function T.cleanup()
  for _,c in ipairs(T.connections)do pcall(function()c:Disconnect()end)end
  if gui then gui:Destroy()end
 end
+-- TEST REMOTE LAB controls: learn the real server call behind Play/Place
+local labWindow=Instance.new("Frame")
+labWindow.Name="RemoteLabPanel"
+labWindow.Size=UDim2.fromOffset(440,195)
+labWindow.Position=UDim2.new(0,20,0.5,247)
+labWindow.BackgroundColor3=C.bg
+labWindow.BorderSizePixel=0
+labWindow.Parent=gui
+Instance.new("UICorner",labWindow).CornerRadius=UDim.new(0,10)
+local labTitle=label(labWindow,"  REMOTE LAB  /  PLAY + PLACEMENT CAPTURE",28)
+labTitle.TextColor3=C.accent
+local labStatus=label(labWindow,"Record original Play or Place once. Replay is manual.",36)
+labStatus.Position=UDim2.fromOffset(8,26)
+local function labButton(text,x,y,w,callback)
+ local b=Instance.new("TextButton")
+ b.Size=UDim2.fromOffset(w,36);b.Position=UDim2.fromOffset(x,y)
+ b.BackgroundColor3=C.panel;b.TextColor3=C.text;b.Text=text;b.Font=Enum.Font.GothamBold;b.TextSize=12;b.Parent=labWindow
+ Instance.new("UICorner",b).CornerRadius=UDim.new(0,6)
+ add(b.Activated:Connect(callback))
+ return b
+end
+local function lab()
+ local instance=env.DarkyRemoteLab
+ if instance then return instance end
+ local ok,source=pcall(function()return game:HttpGet(rootUrl.."RemoteLab.lua")end)
+ if not ok then labStatus.Text="RemoteLab download failed: "..tostring(source);return nil end
+ local fn,err=loadstring(source)
+ if not fn then labStatus.Text="RemoteLab compile error: "..tostring(err);return nil end
+ local success,why=pcall(fn)
+ if not success then labStatus.Text="RemoteLab error: "..tostring(why);return nil end
+ return env.DarkyRemoteLab
+end
+labButton("RECORD PLAY",8,67,133,function()
+ local r=lab();if r then r.arm("join");labStatus.Text="Recording Play. Click the ORIGINAL game Play once."end
+end)
+labButton("RECORD PLACE",153,67,133,function()
+ local r=lab();if r then r.arm("place");labStatus.Text="Recording placement. Place ONE unit manually."end
+end)
+labButton("STOP + EXPORT",298,67,133,function()
+ local r=lab();if r then local calls=r.stopCapture();labStatus.Text="Captured "..#calls.." remote calls. JSON saved."end
+end)
+labButton("REPLAY CALL #1",8,112,206,function()
+ local r=lab();if r then local ok,why=r.replay(1);labStatus.Text=why end
+end)
+labButton("PRINT CAPTURE",226,112,205,function()
+ local r=lab();if r then r.printAll();labStatus.Text="Printed captured remote calls to console."end
+end)
+local labFoot=label(labWindow,"Replay uses original arguments in this session. Results are NOT guaranteed.",30)
+labFoot.Position=UDim2.fromOffset(8,153)
 T.refresh()
 task.spawn(function()
  while gui.Parent do task.wait(8);T.scan() end
