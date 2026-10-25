@@ -1,4 +1,4 @@
--- DarkyHub TEST Live Recorder v2.2
+-- DarkyHub TEST Live Recorder v2.3
 -- Passive client-visible interactions; never fires game remotes.
 local Players=game:GetService("Players")
 local RS=game:GetService("ReplicatedStorage")
@@ -8,7 +8,7 @@ local player=Players.LocalPlayer
 local pg=player:WaitForChild("PlayerGui")
 local env=type(getgenv)=="function" and getgenv() or _G
 if env.DarkyLiveRecorder and env.DarkyLiveRecorder.stop then pcall(env.DarkyLiveRecorder.stop) end
-local R={version="2.2",active=true,events={},sequence=0,connections={},seen=setmetatable({}, {__mode="k"}),lastState="",session=tostring(os.time()).."-"..math.random(1000,9999),autosaves=0,lastGuiAction=nil,hookStatus={}}
+local R={version="2.3",active=true,events={},sequence=0,connections={},seen=setmetatable({}, {__mode="k"}),lastState="",session=tostring(os.time()).."-"..math.random(1000,9999),autosaves=0,lastGuiAction=nil,hookStatus={}}
 env.DarkyLiveRecorder=R
 local ROOT="DarkyHubLiveRecorder"
 local URL="https://raw.githubusercontent.com/DarkBoy-js/DarkBoy-js/main/darkyhub-test/test-loader.lua"
@@ -32,31 +32,61 @@ local function sensitive(s)
  for _,word in ipairs(private) do if s:find(word,1,true) then return true end end
  return false
 end
-local function encode(v,depth,key)
+-- Table conversion is bounded and cycle-safe. Never JSONEncode raw game instances.
+-- Preserve array positions, explicit nil arguments, and dictionary keys.
+local function encode(v,depth,key,seen)
  if sensitive(key) then return "[REDACTED]"end
  depth=depth or 0
- if depth>3 then return "[DEPTH LIMIT]"end
+ seen=seen or {}
+ if depth>7 then return "[DEPTH LIMIT]"end
  local ty=typeof(v)
+ if ty=="nil" then return {type="nil"} end
  if ty=="string" then
-  if #v>180 or v:find("https?://") then return "[REDACTED]"end
-  return name(v)
+  if #v>500 or v:find("https?://") then return "[REDACTED]"end
+  return v:gsub("[%c]"," "):sub(1,500)
  end
- if ty=="number" or ty=="boolean" then return v end
+ if ty=="number" then
+  if v~=v then return "NaN" end
+  if v==math.huge then return "Infinity" end
+  if v==-math.huge then return "-Infinity" end
+  return v
+ end
+ if ty=="boolean" then return v end
  if ty=="Instance" then return {type=v.ClassName,path=path(v)}end
  if ty=="Vector3" then return {type=ty,x=v.X,y=v.Y,z=v.Z}end
- if ty=="CFrame" then return {type=ty,components={v:GetComponents()}}end
  if ty=="Vector2" then return {type=ty,x=v.X,y=v.Y}end
- if ty=="EnumItem" then return tostring(v)end
+ if ty=="CFrame" then return {type=ty,components={v:GetComponents()}}end
+ if ty=="Color3" then return {type=ty,r=v.R,g=v.G,b=v.B}end
+ if ty=="UDim2" then return {type=ty,x={scale=v.X.Scale,offset=v.X.Offset},y={scale=v.Y.Scale,offset=v.Y.Offset}}end
+ if ty=="UDim" then return {type=ty,scale=v.Scale,offset=v.Offset}end
+ if ty=="BrickColor" then return {type=ty,name=v.Name,number=v.Number}end
+ if ty=="EnumItem" then return {type=ty,value=tostring(v)}end
  if ty=="table" then
-  local out={};local n=0
+  if seen[v] then return "[CIRCULAR REFERENCE]"end
+  seen[v]=true
+  local out={}
+  local n=0
   for k,item in pairs(v)do
-   n+=1;if n>30 then out._truncated=true;break end
+   n+=1
+   if n>120 then out._truncated=true;break end
    local sk=tostring(k)
-   if not sensitive(sk) then out[sk]=encode(item,depth+1,sk)end
+   if not sensitive(sk) then
+    local good,value=pcall(encode,item,depth+1,sk,seen)
+    out[sk]=good and value or "[VALUE ENCODE ERROR]"
+   end
   end
+  seen[v]=nil
   return out
  end
- return ty
+ return {type=ty,summary=tostring(v):sub(1,80)}
+end
+local function encodeArgs(args)
+ local out={}
+ for i=1,math.min(args.n,35)do
+  local success,value=pcall(encode,args[i],0,tostring(i))
+  out[i]=success and value or "[SERIALIZATION ERROR]"
+ end
+ return out
 end
 local function write(filename,data)
  if type(writefile)~="function" then return false end
@@ -90,7 +120,7 @@ local function record(kind,action,data,critical)
  if not R.active then return end
  local fingerprint=kind.."|"..action
  local t=os.clock()
- if recent[fingerprint] and t-recent[fingerprint]<0.12 then return end
+ if kind~="remote" and recent[fingerprint] and t-recent[fingerprint]<0.12 then return end
  recent[fingerprint]=t
  R.sequence+=1
  local event={id=R.sequence,unix=os.time(),placeId=game.PlaceId,jobId=game.JobId,kind=kind,
@@ -114,6 +144,7 @@ end
 local function visible(o)
  while o and o~=pg do
   if o:IsA("GuiObject") and not o.Visible then return false end
+  if o:IsA("ScreenGui") and not o.Enabled then return false end
   o=o.Parent
  end
  return true
@@ -163,17 +194,20 @@ local function observe(self,method,args,via)
  local p=path(self)
  if sensitive(p) then return end
  local clock=os.clock()
+ local out=encodeArgs(args)
+ -- Only collapse duplicate observations across the TWO hook paths.
+ -- Never suppress genuine repeated calls made through the same path.
  local signature=method..":"..p
- if router.recent[signature] and clock-router.recent[signature]<0.045 then return end
- router.recent[signature]=clock
- local out={}
- for i=1,math.min(args.n,20)do
-  local ok,v=pcall(encode,args[i],0,tostring(i))
-  out[i]=ok and v or "[SERIALIZATION ERROR]"
+ local digestOk,digest=pcall(function()return HS:JSONEncode({argc=args.n,args=out})end)
+ if not digestOk then digest=tostring(args.n) end
+ local previous=router.recent[signature]
+ if previous and previous.via~=via and previous.digest==digest and clock-previous.at<0.045 then
+  return
  end
+ router.recent[signature]={via=via,digest=digest,at=clock}
  local gui=target.lastGuiAction
  local context=gui and clock-gui.at<8 and {path=gui.path,text=gui.text,secondsAfter=math.floor((clock-gui.at)*100)/100} or nil
- record("remote",method..":"..p,{argc=args.n,args=out,interception=via,precedingGui=context},true)
+ record("remote",method..":"..p,{argc=args.n,args=out,interception=via,precedingGui=context,argEncoding="v2.3"},true)
 end
 router.observe=observe
 if not router.namecallInstalled and type(hookmetamethod)=="function" and type(getnamecallmethod)=="function" then
