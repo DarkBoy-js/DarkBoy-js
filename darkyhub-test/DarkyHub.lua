@@ -1,5 +1,5 @@
 --[[
- DarkyHub v6.0.1 | Candy Kingdom TD / Roblox tower-defense macro hub
+ DarkyHub v6.1 | Candy Kingdom TD / Roblox tower-defense macro hub
  Scoped-module Luau build. RightShift toggles menu; placement minimizes the hub.
 
  NOTE: Roblox games use different remotes, button names and unit models.
@@ -113,7 +113,7 @@ Store.settings = {
     raidKeepMapProfile = true,
     autoShop = false, shopAutoOpen = false, shopItems = "", shopMaxPerReset = 1, shopInterval = 8,
     webhookEnabled = false, webhookUrl = "", webhookWaves = true, webhookWaveEvery = 10,
-    webhookResults = true, webhookDisconnect = true,
+    webhookResults = true, webhookDisconnect = true, webhookCatalog = false,
     placementByWave = false, remoteOnly = true, allowScreenFallback = true, useRecordedCamera = true, minPlacementCash = 0,
 
     autoPlay = false, autoSkip = false, autoUpgrade = false,
@@ -2312,8 +2312,8 @@ function Webhook.queue(event, details)
     local s = Store.settings
     if not s.webhookEnabled or not webhookValid(s.webhookUrl) then return end
     if #Webhook.queued >= 20 then table.remove(Webhook.queued, 1) end
-    local message = string.format("**DarkyHub** | %s\nSession: `%s` | Map: `%s`\n%s",
-        tostring(event):sub(1, 70), Webhook.id,
+    local message = string.format("**DarkyHub** | %s\nInstance: `%s` | Place: `%s` | Map: `%s`\n%s",
+        tostring(event):sub(1, 70), Webhook.id, tostring(game.PlaceId),
         tostring(Map.key):sub(1, 80), tostring(details or ""):sub(1, 1000))
     table.insert(Webhook.queued, message)
 end
@@ -2348,11 +2348,32 @@ end)
 ResultEvent = function(kind)
     if not Store.settings.webhookResults then return end
     local rewardLines = #Detect.rewards > 0 and table.concat(Detect.rewards, "; ") or "No identifiable result labels"
+    if Store.settings.matchMode == "INF / Story" and
+        (kind == "DEFEAT" or kind == "GAME OVER" or kind == "YOU LOSE" or kind == "DUNGEON DEFEAT" or kind == "WELL FOUGHT") then
+        Webhook.queue("INFINITE / STORY DEFEAT", "Run " .. tostring(Detect.runs) ..
+            " | Wave " .. tostring(Detect.wave or "?") .. " | XP " .. tostring(Detect.totalXP))
+    end
     Webhook.queue("Match ended: " .. kind, string.format(
         "Wave %s/%s | Runs %d | XP tracked %d\nRewards: %s",
         tostring(Detect.wave or "?"), tostring(Detect.maxWave or "?"),
         Detect.runs, Detect.totalXP, rewardLines))
 end
+-- Reader reports changed catalog counts only when explicitly enabled.
+task.spawn(function()
+    local lastCount = 0
+    while Core.alive do
+        task.wait(35)
+        if Store.settings.webhookCatalog then
+            local reader = env.DarkyStageReader
+            local count = type(reader) == "table" and type(reader.entries) == "table" and #reader.entries or 0
+            if count > lastCount then
+                Webhook.queue("Stage catalog updated", string.format("%d discovered entries (+%d) | Place %s",
+                    count, count-lastCount, tostring(game.PlaceId)))
+                lastCount = count
+            end
+        end
+    end
+end)
 WaveEvent = function(wave, maximum)
     if Store.settings.webhookWaves then
         local every = math.max(1, tonumber(Store.settings.webhookWaveEvery) or 10)
@@ -2698,7 +2719,7 @@ new("TextLabel", { Size = UDim2.fromOffset(150, 40), Position = UDim2.fromOffset
     TextColor3 = C.accent, TextXAlignment = Enum.TextXAlignment.Left,
     BackgroundTransparency = 1 }, bar)
 new("TextLabel", { Size = UDim2.fromOffset(530, 40), Position = UDim2.fromOffset(147, 0),
-    Text = "v6.0.1  |  " .. Store.playerName .. "  (@" .. player.Name .. ")", Font = Enum.Font.Gotham,
+    Text = "v6.1  |  " .. Store.playerName .. "  (@" .. player.Name .. ")", Font = Enum.Font.Gotham,
     TextSize = 11, TextColor3 = C.muted, TextXAlignment = Enum.TextXAlignment.Left,
     BackgroundTransparency = 1 }, bar)
 local close = new("TextButton", { Size = UDim2.fromOffset(38, 30),
@@ -2741,7 +2762,7 @@ uiNotify = function(msg)
     if statusLine.Parent then statusLine.Text = tostring(msg) end
     task.delay(6, function()
         if Core.alive and token == noteToken and statusLine.Parent then
-            statusLine.Text = "DarkyHub v6.0.1  |  RightShift to toggle"
+            statusLine.Text = "DarkyHub v6.1  |  RightShift to toggle"
         end
     end)
 end
@@ -3516,6 +3537,7 @@ end)
 webhookBox.Text = "" -- never echo stored token into the GUI field
 local webhookStatus = label(section(discordPage.R, "Webhook status"), "Not enabled", C.text)
 toggle(discordConfig, "Send win / defeat + end rewards", "webhookResults")
+toggle(discordConfig, "Notify when Stage Reader discovers stages", "webhookCatalog")
 toggle(discordConfig, "Send infinite-wave milestones", "webhookWaves")
 numeric(discordConfig, "Notify every N waves", "webhookWaveEvery", 1, 100)
 toggle(discordConfig, "Attempt disconnect alerts", "webhookDisconnect")
@@ -3610,6 +3632,30 @@ end)
 
 -- SETTINGS TAB
 local settingsPage = UI.pageCreate("Settings")
+-- Passive stage catalog reader can be launched without replacing DarkyHub.
+do
+    local readerControls = section(settingsPage.R, "Stage Reader | Act and Challenge Catalog")
+    label(readerControls, "Discovers sibling stages, client-visible labels and Play buttons. Backups persist across teleports.")
+    button(readerControls, "LOAD / RELOAD STAGE READER", function()
+        local readerUrl = "https://raw.githubusercontent.com/DarkBoy-js/DarkBoy-js/main/darkyhub-test/reader.lua"
+        task.spawn(function()
+            local ok, source = pcall(function() return game:HttpGet(readerUrl) end)
+            if not ok then uiNotify("Reader download failed: " .. tostring(source)); return end
+            local fn, err = loadstring(source)
+            if not fn then uiNotify("Reader compile error: " .. tostring(err)); return end
+            local success, why = pcall(fn)
+            uiNotify(success and "Stage Reader launched" or ("Reader failed: " .. tostring(why)))
+        end)
+    end)
+    button(readerControls, "SCAN AND BACK UP STAGES", function()
+        local reader = env.DarkyStageReader
+        if not reader then uiNotify("Load Stage Reader first"); return end
+        reader.scan()
+        local ok, filename = reader.backup("darkyhub")
+        uiNotify(ok and ("Catalog backup: " .. filename) or "Catalog backup failed: check writefile")
+    end)
+end
+
 -- Scope appearance controls to avoid Luau 200-register limit.
 do
     local visualSec = section(settingsPage.R, "Appearance  |  Make DarkyHub yours")
@@ -3988,6 +4034,6 @@ env.DarkyHubUnload = function()
     -- Installed __namecall hooks stay in the executor chain, but become inert.
 end
 
-uiNotify(Spy.available and "DarkyHub v6.0.1 ready • Remote Spy active"
-    or "DarkyHub v6.0.1 ready • remote hook unavailable, GUI automations still work")
+uiNotify(Spy.available and "DarkyHub v6.1 ready • Remote Spy active"
+    or "DarkyHub v6.1 ready • remote hook unavailable, GUI automations still work")
 if not Store.hasFS then uiNotify("File APIs unavailable: macros will only exist in memory") end
