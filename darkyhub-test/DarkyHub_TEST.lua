@@ -1,4 +1,4 @@
--- DarkyHub TEST ONLY | stage catalog navigation prototype
+-- DarkyHub TEST ONLY | stage catalog navigation prototype v1.2
 -- Loads the current public DarkyHub; private main repo is not modified.
 local Players=game:GetService("Players")
 local player=Players.LocalPlayer
@@ -114,26 +114,69 @@ local function readChallenges()
  end
 end
 local function updateInfo(s) info.Text=s end
-local function click(btn)
- if not btn or not btn:IsA("GuiButton") then return false,"Button not available" end
- if not btn.Visible then return false,"Open the game menu first" end
- local active=btn
- while active and active~=pg do
-  if active:IsA("GuiObject") and not active.Visible then return false,"Game menu is hidden" end
-  active=active.Parent
+local function isVisible(node)
+ if not node then return false end
+ while node and node~=pg do
+  if node:IsA("GuiObject") and not node.Visible then return false end
+  node=node.Parent
  end
+ return true
+end
+local function click(btn)
+ if not btn or not btn:IsA("GuiButton") then return false,"Button missing" end
+ if not isVisible(btn) then return false,"Game menu is hidden" end
  if type(getconnections)=="function" then
-  local ok,cs=pcall(getconnections,btn.Activated)
-  if ok and type(cs)=="table" then
-   for _,c in ipairs(cs) do
-    if c.Function and type(c.Function)=="function" then
-     local good=pcall(c.Function)
-     if good then return true,"Activated button callback" end
+  for _,signal in ipairs({btn.Activated,btn.MouseButton1Click}) do
+   local ok,connections=pcall(getconnections,signal)
+   if ok and type(connections)=="table" then
+    for _,connection in ipairs(connections) do
+     if type(connection.Fire)=="function" then
+      if pcall(function() connection:Fire() end) then return true,"Connection fired" end
+     elseif type(connection.Function)=="function" then
+      if pcall(connection.Function) then return true,"Callback requested" end
+     end
     end
    end
   end
  end
- return false,"No supported activation callback; select the stage manually"
+ if type(firesignal)=="function" then
+  if pcall(firesignal,btn.Activated) then return true,"Activated signal sent" end
+  if pcall(firesignal,btn.MouseButton1Click) then return true,"Click signal sent" end
+ end
+ local vim=game:GetService("VirtualInputManager")
+ local point=btn.AbsolutePosition+btn.AbsoluteSize/2
+ local ok=pcall(function()
+  vim:SendMouseButtonEvent(point.X,point.Y,0,true,game,0)
+  task.wait(0.08)
+  vim:SendMouseButtonEvent(point.X,point.Y,0,false,game,0)
+ end)
+ return ok,ok and "Screen click requested" or "Executor cannot activate this button"
+end
+local function showGameMenu(kind)
+ local root=kind=="Challenge" and find(pg,"HubWindows/Challenges/Pop")
+  or find(pg,"HubWindows/Stages/Pop")
+ if root and root:IsA("GuiObject") and root.Visible then return true end
+ -- Request opening through the game's own accessible hub controls.
+ local menu=kind=="Challenge" and find(pg,"HubHUD/Areas") or
+  (find(pg,"HubHUD/Play") or find(pg,"HubHUD/Areas"))
+ local ok,reason=click(menu)
+ if ok then task.wait(0.7) end
+ root=kind=="Challenge" and find(pg,"HubWindows/Challenges/Pop")
+  or find(pg,"HubWindows/Stages/Pop")
+ return root and root.Visible or false,ok and "Open the "..kind.." panel (Areas or world portal)" or reason
+end
+local function locatePlay(container)
+ if not container then return nil end
+ for _,obj in ipairs(container:GetDescendants()) do
+  if obj:IsA("GuiButton") and isVisible(obj) then
+   local name=obj.Name:upper()
+   local title=obj:IsA("TextButton") and obj.Text:upper() or ""
+   if name=="PLAY" or name=="START" or title=="PLAY!" or title=="PLAY" or title=="START" then
+    return obj
+   end
+  end
+ end
+ return nil
 end
 function T.scan()
  readStages();readChallenges()
@@ -181,21 +224,47 @@ add(mode.Activated:Connect(function()
  mode.Text="MODE: "..string.upper(T.mode).." (click to change)"
  T.selected=nil;T.refresh()
 end))
+local running=false
 add(launch.Activated:Connect(function()
- if game.PlaceId~=111053011787075 then updateInfo("Stage selection is hub-only. Return to hub first.");return end
- local e=T.catalog[T.selected]
- if not e then T.refresh();return end
- local button
- if e.kind=="Challenge" then
-  button=find(pg,"HubWindows/Challenges/Pop/Panel/Fill/"..e.id.."/Fill/Play")
- else button=stageRows() and stageRows():FindFirstChild(e.id) end
- local ok,why=click(button)
- updateInfo(ok and ("Requested "..e.id.."; confirm game selection manually") or why)
- if ok and e.kind~="Challenge" then
-  local play=find(pg,"HubWindows/Stages/Pop/Panel/Fill/Select/Play")
-  launch.Text=play and "SELECTED: press game's PLAY to enter lobby" or "STAGE SELECTED"
- end
+ if running then return end
+ if game.PlaceId~=111053011787075 then updateInfo("Only available in the hub.");return end
+ local entry=T.catalog[T.selected]
+ if not entry then T.refresh();updateInfo("Choose a stage first.");return end
+ running=true
+ launch.Text="JOINING "..entry.id.." ..."
+ task.spawn(function()
+  local ok,err=pcall(function()
+   local opened,why=showGameMenu(entry.kind)
+   if not opened then
+    updateInfo("Open the "..entry.kind.." menu in the game, then press Join again. "..tostring(why))
+    return
+   end
+   local button
+   if entry.kind=="Challenge" then
+    local card=find(pg,"HubWindows/Challenges/Pop/Panel/Fill/"..entry.id)
+    button=card and locatePlay(card)
+    if not button then updateInfo("Challenge "..entry.id.." has no visible Play button. Open its card.");return end
+    local yes,reason=click(button)
+    updateInfo(yes and ("Challenge "..entry.id.." Play requested — check lobby status") or tostring(reason))
+   else
+    button=stageRows() and stageRows():FindFirstChild(entry.id)
+    local selected,reason=click(button)
+    if not selected then updateInfo("Stage selection failed: "..tostring(reason));return end
+    task.wait(0.35)
+    local picker=find(pg,"HubWindows/Stages/Pop/Panel/Fill/Select")
+    local play=picker and locatePlay(picker)
+    if not play then updateInfo(entry.id.." selected. Open the game Play confirmation and try again.");return end
+    local yes,why=click(play)
+    updateInfo(yes and (entry.id.." Play requested — check stage lobby") or tostring(why))
+   end
+   T.save()
+  end)
+  if not ok then updateInfo("TEST join error: "..tostring(err)) end
+  running=false
+  launch.Text="JOIN SELECTED "..string.upper(T.mode)
+ end)
 end))
+
 function T.cleanup()
  for _,c in ipairs(T.connections)do pcall(function()c:Disconnect()end)end
  if gui then gui:Destroy()end
