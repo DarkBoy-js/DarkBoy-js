@@ -386,7 +386,14 @@ local function confirmedAct(...)
  if not act or not act:IsA("RemoteFunction") then return false,"MatchRemotes.Act not found" end
  local args=table.pack(...)
  local ok,result=pcall(function()return act:InvokeServer(table.unpack(args,1,args.n))end)
- return ok,ok and ("Request sent; server reply: "..tostring(result)) or tostring(result)
+ if not ok then return false,"InvokeServer failed: "..tostring(result) end
+ local reply=tostring(result)
+ if type(result)=="table" then
+  local good,encoded=pcall(function()return HttpService:JSONEncode(result)end)
+  reply=good and encoded or ("table (cannot serialize: "..tostring(encoded)..")")
+ end
+ print("[DarkyHub TEST] Act response:",reply:sub(1,1000))
+ return result~=false,"Request sent; reply: "..reply:sub(1,190)
 end
 T.confirmedAct=confirmedAct
 function T.placeUnit(unitName,x,y)
