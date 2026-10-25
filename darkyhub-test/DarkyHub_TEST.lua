@@ -1,4 +1,4 @@
--- DarkyHub TEST ONLY | stage catalog navigation prototype v1.4
+-- DarkyHub TEST ONLY | stage catalog navigation prototype v1.5
 -- Loads the current public DarkyHub; private main repo is not modified.
 local Players=game:GetService("Players")
 local player=Players.LocalPlayer
@@ -369,6 +369,35 @@ directButton("RETURN TO HUB (TEST TELEPORT)",8,225,423,function()
 end)
 local labFoot=label(labWindow,"Replay uses original arguments in this session. Results are NOT guaranteed.",30)
 labFoot.Position=UDim2.fromOffset(8,196)
+-- Move either panel independently by dragging its title.
+do
+ local UIS=game:GetService("UserInputService")
+ local function draggable(frame,handle)
+  handle.Active=true
+  local dragging=false
+  local startPointer,startPosition
+  add(handle.InputBegan:Connect(function(input)
+   if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
+    dragging=true
+    startPointer=input.Position
+    startPosition=frame.Position
+   end
+  end))
+  add(UIS.InputChanged:Connect(function(input)
+   if not dragging or not startPointer then return end
+   if input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch then
+    local delta=input.Position-startPointer
+    frame.Position=UDim2.new(startPosition.X.Scale,startPosition.X.Offset+delta.X,
+      startPosition.Y.Scale,startPosition.Y.Offset+delta.Y)
+   end
+  end))
+  add(UIS.InputEnded:Connect(function(input)
+   if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then dragging=false end
+  end))
+ end
+ draggable(main,title)
+ draggable(labWindow,labTitle)
+end
 T.refresh()
 task.spawn(function()
  while gui.Parent do task.wait(8);T.scan() end
