@@ -1090,6 +1090,11 @@ function Verify.placement(step, before, folder, explicit)
     return "unknown"
 end
 function Macro.startPlay()
+    if not Macro.manualPlayRequested then
+        uiNotify("Macro playback is MANUAL ONLY: press PLAY MACRO")
+        return false
+    end
+    Macro.manualPlayRequested = false
     local name = Macro.selected
     local m = name and Macro.library()[name]
     if not m or type(m.steps) ~= "table" or #m.steps == 0 then
@@ -1428,7 +1433,8 @@ function Detect.scan()
         Macro.dispatchedPlacements = 0
         Macro.lastRunStarted = Detect.runId
         log("Match start / reset: " .. tostring(wave))
-        if Store.settings.autoPlay then Macro.startPlay() end
+        -- TEST: no automatic playback after wave resets, replays or new matches.
+        Store.settings.autoPlay = false
     end
     if wave and (not oldWave or wave ~= oldWave) and not Detect.result then
         WaveEvent(wave, maxWave)
@@ -3229,7 +3235,7 @@ end, function(v)
     if Macro.selected ~= v then Macro.select(v) end
     macroDD.refresh(v)
 end, Macro.selected)
-toggle(matchMacroSec, "Auto-start macro when match is detected", "autoPlay")
+label(matchMacroSec, "Macro playback is manual only. Match transitions never start macros.")
 local macroPlayButton = button(matchMacroSec, "PLAY MACRO", function(btn)
     if Macro.playing then
         Macro.stopPlay()
@@ -3237,6 +3243,7 @@ local macroPlayButton = button(matchMacroSec, "PLAY MACRO", function(btn)
         btn.BackgroundColor3 = C.green
         uiNotify("Macro stopped")
     else
+        Macro.manualPlayRequested = true
         Macro.startPlay()
         btn.Text = Macro.playing and "STOP MACRO" or "PLAY MACRO"
         btn.BackgroundColor3 = Macro.playing and C.danger or C.green
@@ -3274,7 +3281,10 @@ numeric(playSec, "Fixed action delay (seconds)", "fixedStepDelay", 0.05, 30)
 toggle(playSec, "Save placement markers from clicks", "captureClickFallback")
 numeric(playSec, "Current tower slot (1 to 6)", "selectedSlot", 1, 6)
 label(playSec, "Hybrid mode first uses placement remotes if captured. Marker-only steps use simulated hotkeys and screen input at the saved XYZ. Saved camera data improves accuracy. Old macros without camera data need the same camera angle. Verify an actual tower spawned before relying on replay.")
-button(playSec, "PLAY selected macro NOW", function() Macro.startPlay() end)
+button(playSec, "PLAY selected macro NOW", function()
+    Macro.manualPlayRequested = true
+    Macro.startPlay()
+end)
 button(playSec, "STOP playback", function() Macro.stopPlay() end, true)
 button(playSec, "Refresh macro list", function()
     Store.macros[Map.key] = nil
